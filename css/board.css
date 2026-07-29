@@ -1,0 +1,182 @@
+/* ═══════ Доска: сукно, клетки, фишка, кубики ═══════ */
+
+.game {
+  display: grid;
+  grid-template-columns: 1fr minmax(300px, 380px);
+  gap: 20px;
+  padding: 18px;
+  min-height: 100vh;
+  align-items: start;
+}
+
+.board-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 36px);
+}
+
+.board {
+  position: relative;
+  width: var(--board-size);
+  height: var(--board-size);
+  display: grid;
+  grid-template-columns: 1.35fr repeat(5, 1fr) 1.35fr;
+  grid-template-rows: 1.35fr repeat(5, 1fr) 1.35fr;
+  gap: 5px;
+  padding: 14px;
+  background:
+    radial-gradient(120% 120% at 30% 20%, #17302a, var(--felt-deep) 75%),
+    var(--felt);
+  border-radius: 22px;
+  border: 1px solid #24443a;
+  box-shadow:
+    0 40px 80px rgba(0, 0, 0, 0.6),
+    inset 0 0 80px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ── клетка ── */
+.cell {
+  position: relative;
+  background: linear-gradient(165deg, var(--cell-edge), var(--cell) 60%);
+  border: 1px solid rgba(212, 175, 106, 0.12);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  transition: box-shadow var(--dur-med) var(--ease-out),
+              border-color var(--dur-med);
+  overflow: hidden;
+}
+.cell::after {                    /* лёгкий блик сверху */
+  content: '';
+  position: absolute;
+  inset: 0 0 60% 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.04), transparent);
+  pointer-events: none;
+}
+
+.cell-emoji { font-size: clamp(0.9rem, 2.2vmin, 1.5rem); line-height: 1; }
+.cell-title {
+  font-size: clamp(0.42rem, 1.05vmin, 0.66rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.cell.corner {
+  background: linear-gradient(160deg, #1d3a31, #122620 70%);
+  border-color: rgba(212, 175, 106, 0.35);
+}
+.cell.corner .cell-title { color: var(--gold); }
+
+.cell.type-doodad { border-color: rgba(201, 106, 78, 0.3); }
+.cell.type-doodad .cell-title { color: var(--loss); }
+.cell.type-market .cell-title { color: var(--steel); }
+.cell.type-deal .cell-title { color: var(--ivory-dim); }
+
+/* активная клетка — фишка здесь */
+.cell.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 26px rgba(212, 175, 106, 0.35), inset 0 0 18px rgba(212, 175, 106, 0.12);
+}
+
+/* ── центр ── */
+.board-center {
+  grid-area: 2 / 2 / 7 / 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  border-radius: 14px;
+  position: relative;
+}
+
+.center-brand {
+  font-family: var(--f-display);
+  font-weight: 900;
+  font-size: clamp(1rem, 2.6vmin, 1.7rem);
+  letter-spacing: 0.22em;
+  color: rgba(212, 175, 106, 0.28);
+  text-align: center;
+  user-select: none;
+}
+
+.center-note {
+  min-height: 2.4em;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 26ch;
+}
+
+/* ── кубики ── */
+.dice-zone { display: flex; gap: 14px; }
+
+.die {
+  width: clamp(44px, 7vmin, 64px);
+  height: clamp(44px, 7vmin, 64px);
+  background: linear-gradient(150deg, #fdf8ea, var(--ivory) 60%, #ddd3ba);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 #fff;
+}
+.die span {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: clamp(1.3rem, 3.4vmin, 2rem);
+  color: #241c0c;
+}
+.die.rolling { animation: die-roll 0.55s var(--ease-out); }
+@keyframes die-roll {
+  0%   { transform: rotate(0) scale(1); }
+  35%  { transform: rotate(200deg) scale(1.18); }
+  70%  { transform: rotate(340deg) scale(0.95); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+.btn-roll { font-size: clamp(0.75rem, 1.6vmin, 0.95rem); padding: 0.85em 1.6em; }
+
+/* ── фишка ── */
+.token {
+  position: absolute;
+  z-index: 5;
+  font-size: clamp(1.2rem, 3vmin, 1.9rem);
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
+  transition: left var(--dur-step) var(--ease-out), top var(--dur-step) var(--ease-out);
+  pointer-events: none;
+  transform: translate(-50%, -58%);
+}
+.token.hop { animation: hop var(--dur-step) var(--ease-out); }
+@keyframes hop {
+  50% { transform: translate(-50%, -95%) scale(1.12); }
+}
+
+/* payday вспышка по доске */
+.board.payday-flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 50%, rgba(212, 175, 106, 0.22), transparent 65%);
+  animation: flash 0.9s var(--ease-out) forwards;
+  pointer-events: none;
+  z-index: 4;
+}
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+
+/* ── мобильная раскладка ── */
+@media (max-width: 900px) {
+  .game { grid-template-columns: 1fr; gap: 12px; padding: 10px; }
+  .board-wrap { min-height: auto; }
+  .board { width: min(96vw, 96vh); height: min(96vw, 96vh); }
+}
