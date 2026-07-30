@@ -24,10 +24,25 @@ var GameEngine = (function () {
 
   function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 
+  // тасованная колода без повторов: карты не повторяются, пока колода не кончится
+  function drawFrom(game, name, arr) {
+    var d = game.decks[name];
+    if (!d || d.length === 0) {
+      d = arr.map(function (_, i) { return i; });
+      for (var i = d.length - 1; i > 0; i--) {
+        var j = Math.floor(game.rng() * (i + 1));
+        var t = d[i]; d[i] = d[j]; d[j] = t;
+      }
+      game.decks[name] = d;
+    }
+    return arr[d.pop()];
+  }
+
   function Game(opts) {
     opts = opts || {};
     this.rng = makeRng(opts.seed != null ? opts.seed : Date.now());
     this.state = null;
+    this.decks = {};
   }
 
   // ---------- старт ----------
@@ -48,6 +63,7 @@ var GameEngine = (function () {
       skipTurns: 0,
       turn: 0,
       laps: 0,
+      lastDownsizeLap: -9,     // круг последнего увольнения (кулдаун)
       stocks: {},              // id -> {qty, avgPrice, dividend, title}
       realty: [],              // {id,title,cost,downPay,cashflow,kind}
       biz: [],
@@ -167,14 +183,14 @@ var GameEngine = (function () {
         return { type: 'dealChoice' };
       }
       case 'doodad': {
-        var dd = pick(this.rng, D.DOODADS);
+        var dd = drawFrom(this, 'doodad', D.DOODADS);
         s.cash -= dd.cost;
         this._log('🛍 Соблазн: ' + dd.title + ' −$' + dd.cost);
         this._checkBankrupt();
         return { type: 'doodad', card: dd };
       }
       case 'market': {
-        var ev = pick(this.rng, D.MARKET_EVENTS);
+        var ev = drawFrom(this, 'market', D.MARKET_EVENTS);
         return this._applyMarket(ev);
       }
       case 'charity': {
@@ -191,6 +207,12 @@ var GameEngine = (function () {
         return { type: 'baby', children: s.children };
       }
       case 'downsize': {
+        // кулдаун: не бьёт чаще раза в 2 круга — иначе ранняя игра превращается в мясорубку
+        if (s.laps - s.lastDownsizeLap < 2) {
+          this._log('📉 Сокращение прошло мимо — в этот раз пронесло');
+          return { type: 'downsize_saved' };
+        }
+        s.lastDownsizeLap = s.laps;
         var f = this.finance();
         s.cash -= f.expenses * D.RULES.downsizePayFactor;
         s.skipTurns = D.RULES.downsizeSkip;
@@ -206,8 +228,9 @@ var GameEngine = (function () {
   Game.prototype.chooseDeal = function (size) {
     var s = this.state;
     if (!s.pendingCard || s.pendingCard.type !== 'dealChoice') { return null; }
-    var deck = size === 'big' ? D.BIG_DEALS : D.SMALL_DEALS;
-    var card = pick(this.rng, deck);
+    var card = size === 'big'
+      ? drawFrom(this, 'big', D.BIG_DEALS)
+      : drawFrom(this, 'small', D.SMALL_DEALS);
     s.pendingCard = { type: 'deal', size: size, card: card };
     this._log('📄 Открыта ' + (size === 'big' ? 'крупная' : 'малая') + ' сделка: ' + card.title);
     return { card: card, size: size };
@@ -394,10 +417,9 @@ var GameEngine = (function () {
     // авто-спасение: попробовать кредит
     var need = Math.ceil(-s.cash / D.RULES.loanStep) * D.RULES.loanStep;
     var f = this.finance();
-    // кредит доступен, пока платёж по нему не съедает весь кэшфлоу
+    // банк даёт кредит, пока платёж по всем кредитам не превышает половину зарплаты
     var futurePayment = Math.round((s.loan + need) * D.RULES.loanRate);
-    var wouldFlow = f.salary + f.passive - (f.expenses - f.loanPayment) - futurePayment;
-    if (wouldFlow > 0) {
+    if (futurePayment <= f.salary * 0.5) {
       s.loan += need;
       s.cash += need;
       this._log('🏦 Авто-кредит на $' + need + ' чтобы закрыть минус');

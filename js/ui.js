@@ -161,6 +161,7 @@ var GameUI = (function () {
     if (ev && ev.type === 'doodad') { showInfoCard('СОБЛАЗН', ev.card.title, ev.card.desc, [{ k: 'Потрачено', v: fmt(-ev.card.cost) }], true); return; }
     if (ev && ev.type === 'market' && ev.card) { showInfoCard('РЫНОК', ev.card.title, ev.card.desc, [], false); return; }
     if (ev && ev.type === 'downsize') { showInfoCard('УВОЛЬНЕНИЕ', 'Сокращение на работе', 'Оплати полные расходы и пропусти ход. Пассивный доход в такие моменты — лучшая страховка.', [{ k: 'Оплачено', v: fmt(-ev.paid) }], true); return; }
+    if (ev && ev.type === 'downsize_saved') { showInfoCard('ПРОНЕСЛО', 'Сокращение прошло мимо', 'В этот раз уволили не тебя. Совсем недавно уже был удар — второй подряд игра не даёт.', [], false); return; }
     if (ev && ev.type === 'baby') { showInfoCard('СЕМЬЯ', 'У тебя родился ребёнок!', 'Расходы выросли. Теперь выйти из бегов чуть сложнее — но и мотивации больше.', [{ k: 'Детей', v: String(ev.children) }], false); return; }
 
     $('btn-roll').disabled = false;
