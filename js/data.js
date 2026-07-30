@@ -1,217 +1,143 @@
 /* ============================================================
-   Крысиные бега — данные игры
-   Профессии, клетки доски, колоды сделок/соблазнов/рынка
-   Баланс близок к оригинальному Cashflow 101 (упрощён)
+   Крысиные бега v2 — «Месяц за месяцем»
+   Данные: старт из жизни Mike, возможности, предупреждения,
+   события, навыки, отдых. Каждая карточка несёт урок.
    ============================================================ */
 
 var GameData = (function () {
   'use strict';
 
-  // ---- Профессии (оригинальный баланс Cashflow, округлён) ----
-  var PROFESSIONS = [
-    {
-      id: 'janitor', title: 'Дворник', emoji: '🧹',
-      salary: 1600, taxes: 280, otherExpenses: 570,
-      mortgage: 200, carLoan: 60, cardLoan: 60,
-      liabilities: { mortgage: 20000, carLoan: 4000, cardLoan: 3000 },
-      perChildCost: 70, cash: 560
-    },
-    {
-      id: 'nurse', title: 'Медсестра', emoji: '💉',
-      salary: 3100, taxes: 600, otherExpenses: 1000,
-      mortgage: 400, carLoan: 100, cardLoan: 90,
-      liabilities: { mortgage: 47000, carLoan: 5000, cardLoan: 4000 },
-      perChildCost: 170, cash: 480
-    },
-    {
-      id: 'teacher', title: 'Учитель', emoji: '📚',
-      salary: 3300, taxes: 630, otherExpenses: 1090,
-      mortgage: 500, carLoan: 100, cardLoan: 90,
-      liabilities: { mortgage: 50000, carLoan: 5000, cardLoan: 4000 },
-      perChildCost: 180, cash: 400
-    },
-    {
-      id: 'engineer', title: 'Инженер', emoji: '⚙️',
-      salary: 4900, taxes: 1050, otherExpenses: 1650,
-      mortgage: 700, carLoan: 140, cardLoan: 120,
-      liabilities: { mortgage: 75000, carLoan: 7000, cardLoan: 5000 },
-      perChildCost: 250, cash: 400
-    },
-    {
-      id: 'manager', title: 'Менеджер', emoji: '💼',
-      salary: 4600, taxes: 910, otherExpenses: 1500,
-      mortgage: 700, carLoan: 120, cardLoan: 100,
-      liabilities: { mortgage: 75000, carLoan: 6000, cardLoan: 4000 },
-      perChildCost: 240, cash: 400
-    },
-    {
-      id: 'lawyer', title: 'Юрист', emoji: '⚖️',
-      salary: 7500, taxes: 1830, otherExpenses: 2210,
-      mortgage: 1100, carLoan: 220, cardLoan: 180,
-      liabilities: { mortgage: 115000, carLoan: 11000, cardLoan: 7000 },
-      perChildCost: 380, cash: 400
-    },
-    {
-      id: 'pilot', title: 'Пилот', emoji: '✈️',
-      salary: 9500, taxes: 2350, otherExpenses: 2900,
-      mortgage: 1330, carLoan: 300, cardLoan: 660,
-      liabilities: { mortgage: 143000, carLoan: 15000, cardLoan: 22000 },
-      perChildCost: 480, cash: 400
-    },
-    {
-      id: 'doctor', title: 'Врач', emoji: '🩺',
-      salary: 13200, taxes: 3420, otherExpenses: 4650,
-      mortgage: 1900, carLoan: 380, cardLoan: 270,
-      liabilities: { mortgage: 202000, carLoan: 19000, cardLoan: 10000 },
-      perChildCost: 640, cash: 400
-    }
+  // ---- Старт: твоя жизнь, правится на первом экране ----
+  var START = {
+    role: 'Вайб-кодер · AI-автоматизатор',
+    place: 'Да Нанг',
+    salary: 1500,
+    cash: 800,
+    energy: 70,
+    expenses: [
+      { id: 'home', label: 'Жильё', amount: 400 },
+      { id: 'food', label: 'Еда', amount: 300 },
+      { id: 'moto', label: 'Байк и дорога', amount: 60 },
+      { id: 'net', label: 'Связь и интернет', amount: 30 },
+      { id: 'subs', label: 'Подписки и софт', amount: 120 },
+      { id: 'gym', label: 'Зал', amount: 40 },
+      { id: 'life', label: 'Жизнь и прочее', amount: 150 }
+    ]
+  };
+
+  // ---- Возможности ----
+  // cost — платишь сейчас · flow — капает в месяц · risk — шанс простоя в месяц
+  // liquid — продаётся за день · category: flow|paper|spec|network
+  var OPPORTUNITIES = [
+    { id: 'tpl', cat: 'flow', title: 'Пакет шаблонов автоматизации', desc: 'Собираешь один раз, продаёшь на маркетплейсе. Продажи капают сами.', cost: 900, flow: 55,
+      lesson: 'Навык, превращённый в актив: себестоимость копии — ноль.' },
+    { id: 'bot1', cat: 'flow', title: 'Бот по подписке для отдела продаж', desc: 'Один клиент платит ежемесячно. Пока платит.', cost: 1200, flow: 130, risk: 0.3,
+      lesson: 'Лучший поток на доллар. Но один клиент — это не бизнес, а риск: 30% что в месяц не заплатит.' },
+    { id: 'bot2', cat: 'flow', title: 'Второй клиент на того же бота', desc: 'Код уже написан, продаёшь ещё раз.', cost: 400, flow: 110, risk: 0.2, needs: 'bot1',
+      lesson: 'Второй клиент почти бесплатный — и риск размазался. Это и есть масштабирование.' },
+    { id: 'room', cat: 'flow', title: 'Комната в доме под сдачу', desc: 'Ан Тхыонг, хозяин уезжает и продаёт долю.', cost: 4200, flow: 95,
+      lesson: 'Окупится за 44 месяца. Медленно, зато жильцы платят стабильнее, чем клиенты ботов.' },
+    { id: 'bikes', cat: 'flow', title: 'Три байка в аренду туристам', desc: 'Сезон с ноября по апрель. Обслуживание на тебе.', cost: 2400, flow: 70, risk: 0.25,
+      lesson: 'Выше доходность — выше и шанс, что месяц уйдёт в ноль. Риск — цена доходности.' },
+    { id: 'div', cat: 'paper', title: 'Дивидендные акции', desc: 'Скучно, надёжно. Продать можно в любой момент.', cost: 3000, flow: 22, liquid: true,
+      lesson: 'Слабый поток, зато за день превращается в деньги. Это резерв, а не рост.' },
+    { id: 'div2', cat: 'paper', title: 'Ещё пакет дивидендных', desc: 'Индексный фонд, платит каждый месяц понемногу.', cost: 2000, flow: 15, liquid: true,
+      lesson: 'Скучные активы не делают богатым — они не дают стать бедным.' },
+    { id: 'reit', cat: 'paper', title: 'Доля в фонде недвижимости', desc: 'REIT: недвижка без ремонта и жильцов.', cost: 5000, flow: 42, liquid: true,
+      lesson: 'Недвижимость без сантехника: меньше поток, зато ноль головной боли и ликвидно.' },
+    { id: 'saas', cat: 'flow', title: 'Готовый сервис с оборотом', desc: '40 платящих клиентов. Владелец выгорел и продаёт.', cost: 26000, flow: 590,
+      lesson: 'Готовое дороже, чем строить самому, но платит с первого месяца. Ты купил время.' },
+    { id: 'apt', cat: 'flow', title: 'Студия под сдачу (ипотека)', desc: 'Взнос 12 000, платёж банку уже вычтен из потока.', cost: 12000, flow: 270,
+      lesson: 'Кредит на актив работает на тебя: чужие деньги приносят твой поток. На телефон — против тебя.' },
+    { id: 'studio', cat: 'flow', title: 'Доля в продакшн-студии', desc: 'Твоя мечта, но пока чужая студия. 20%, выплаты с прибыли.', cost: 18000, flow: 320, risk: 0.35,
+      lesson: 'Мечта и инвестиция — разные вещи. 35% что прибыли в месяц не будет вовсе.' },
+    { id: 'land', cat: 'spec', title: 'Земля под застройку', desc: 'Потока нет. Через годы может удвоиться. Может — нет.', cost: 9000, flow: 0, spec: true,
+      lesson: 'Это ставка, а не поток. Пока держишь — деньги заморожены и не работают.' },
+    { id: 'garage', cat: 'flow', title: 'Гараж-бокс под мастерскую', desc: 'Сосед готов арендовать хоть завтра.', cost: 2000, flow: 45,
+      lesson: 'Маленький скучный актив. Три таких — и оплачен твой байк с бензином навсегда.' },
+    { id: 'vend', cat: 'flow', title: 'Кофейный автомат в коворкинге', desc: 'Стоит и наливает. Раз в неделю засыпать зёрна.', cost: 3000, flow: 90, risk: 0.15,
+      lesson: 'Почти пассивно, но «почти»: автомат ломается, коворкинг закрывается. Диверсифицируй.' },
+    { id: 'club', cat: 'network', title: 'Закрытый клуб предпринимателей', desc: 'Взнос за год. Денег не приносит. Приносит людей.', cost: 800, flow: 0, network: true,
+      lesson: 'Связи — не актив в таблице, но лучшие сделки приходят от людей, а не с маркетплейса.' },
+    { id: 'blog', cat: 'flow', title: 'Телеграм-канал про автоматизацию', desc: 'Полгода вёл для души — можно продавать рекламу.', cost: 600, flow: 60, risk: 0.2,
+      lesson: 'Аудитория = актив. Который надо кормить контентом, иначе поток тает.' }
   ];
 
-  // ---- Доска: 24 клетки по периметру, 4 угла ----
-  // Порядок обхода по часовой, индекс 0 = угол «Зарплата»
-  var BOARD = [
-    { type: 'payday',  title: 'Зарплата',      emoji: '💰', corner: true },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'doodad',  title: 'Соблазн',       emoji: '🛍' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'market',  title: 'Рынок',         emoji: '📈' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'charity', title: 'Благотвор.',    emoji: '🤲', corner: true },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'doodad',  title: 'Соблазн',       emoji: '🛍' },
-    { type: 'baby',    title: 'Ребёнок',       emoji: '👶' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'doodad',  title: 'Соблазн',       emoji: '🛍' },
-    { type: 'market',  title: 'Рынок',         emoji: '📈', corner: true },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'doodad',  title: 'Соблазн',       emoji: '🛍' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'market',  title: 'Рынок',         emoji: '📈' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'downsize', title: 'Увольнение',   emoji: '📉', corner: true },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'doodad',  title: 'Соблазн',       emoji: '🛍' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' },
-    { type: 'market',  title: 'Рынок',         emoji: '📈' },
-    { type: 'deal',    title: 'Сделка',        emoji: '📄' }
+  // ---- Навыки: платишь и ждёшь — зарплата растёт ----
+  var SKILLS = [
+    { id: 'eng', title: 'Английский до делового', desc: '3 месяца занятий — клиенты с Запада платят больше.', cost: 500, months: 3, salaryUp: 300,
+      lesson: 'Навык — единственный актив, который нельзя потерять на падении рынка.' },
+    { id: 'sales', title: 'Курс продаж', desc: 'Продавать свои боты дороже. 2 месяца.', cost: 400, months: 2, salaryUp: 250,
+      lesson: 'Доход растёт не от кода, а от умения его продать.' },
+    { id: 'video', title: 'Видеопродакшн', desc: 'Твоя тема. 4 месяца практики.', cost: 700, months: 4, salaryUp: 400,
+      lesson: 'Редкое сочетание навыков ценится дороже, чем один глубокий.' }
   ];
 
-  // ---- Малые сделки ----
-  // kind: stock | realty | cd
-  var SMALL_DEALS = [
-    { kind: 'stock', id: 'OK4U', title: 'Акции OK4U', desc: 'Телеком-гигант. Дивидендов нет, волатильность высокая.', price: 10, range: [5, 40], dividend: 0 },
-    { kind: 'stock', id: 'OK4U2', title: 'Акции OK4U', desc: 'Просадка после отчёта. Дивидендов нет.', price: 5, range: [5, 40], dividend: 0 },
-    { kind: 'stock', id: 'MYT4U', title: 'Акции MYT4U', desc: 'Производитель электрокаров. Хайп.', price: 30, range: [10, 40], dividend: 0 },
-    { kind: 'stock', id: 'MYT4U2', title: 'Акции MYT4U', desc: 'Коррекция рынка, страх в новостях.', price: 10, range: [10, 40], dividend: 0 },
-    { kind: 'stock', id: 'GRO4US', title: 'Фонд GRO4US', desc: 'Дивидендный фонд. Платит $1 на акцию каждый круг.', price: 20, range: [10, 30], dividend: 1 },
-    { kind: 'stock', id: '2BIG', title: 'Фонд 2BIG', desc: 'Дивидендный REIT. Платит $1 на акцию каждый круг.', price: 25, range: [15, 35], dividend: 1 },
-    { kind: 'cd', id: 'CD5', title: 'Депозит (CD)', desc: 'Сертификат на $5 000 под 4% годовых. Надёжно, но медленно.', price: 5000, cashflow: 20 },
-    { kind: 'realty', id: 'condo1', title: 'Студия 28 м²', desc: 'Хозяин срочно уезжает. Сдача в аренду покроет ипотеку с плюсом.', cost: 45000, downPay: 5000, cashflow: 140 },
-    { kind: 'realty', id: 'condo2', title: 'Квартира 1+1', desc: 'Банк продаёт залоговую. Ниже рынка на 15%.', cost: 52000, downPay: 4000, cashflow: 160 },
-    { kind: 'realty', id: 'condo3', title: 'Студия у метро', desc: 'Аренда стабильная, жильцы уже внутри.', cost: 40000, downPay: 3000, cashflow: 100 },
-    { kind: 'realty', id: 'condo4', title: 'Комната-студия', desc: 'Дёшево и сердито. Косметика за свой счёт.', cost: 30000, downPay: 2000, cashflow: 80 },
-    { kind: 'realty', id: 'land9', title: 'Участок 10 соток', desc: 'Земля на окраине. Дохода нет — ставка на рост.', cost: 9000, downPay: 9000, cashflow: 0 },
-    { kind: 'stock', id: 'OK4U3', title: 'Акции OK4U', desc: 'Слухи о поглощении, цена на середине диапазона.', price: 20, range: [5, 40], dividend: 0 },
-    { kind: 'stock', id: 'MYT4U3', title: 'Акции MYT4U', desc: 'Новый завод запущен, аналитики верят.', price: 20, range: [10, 40], dividend: 0 },
-    { kind: 'stock', id: 'GRO4US2', title: 'Фонд GRO4US', desc: 'Просел вместе с рынком. Дивиденды платит стабильно: $1 на акцию.', price: 12, range: [10, 30], dividend: 1 },
-    { kind: 'stock', id: '2BIG2', title: 'Фонд 2BIG', desc: 'На пике, но дивиденды честные: $1 на акцию каждый круг.', price: 32, range: [15, 35], dividend: 1 },
-    { kind: 'stock', id: 'ON2U', title: 'Акции ON2U', desc: 'Убыточный стартап доставки. Дёшево. Рискованно.', price: 6, range: [1, 30], dividend: 0 },
-    { kind: 'stock', id: 'ON2U2', title: 'Акции ON2U', desc: 'Стартап доставки вышел в прибыль! Хайп в новостях.', price: 22, range: [1, 30], dividend: 0 },
-    { kind: 'realty', id: 'condo5', title: 'Квартира 2+1 у школы', desc: 'Семейные жильцы, платят без задержек.', cost: 65000, downPay: 6000, cashflow: 220 },
-    { kind: 'realty', id: 'condo6', title: 'Студия после ремонта', desc: 'Заезжай и сдавай. Хозяину срочно нужен кэш.', cost: 38000, downPay: 3000, cashflow: 120 },
-    { kind: 'realty', id: 'condo7', title: 'Квартира у вокзала', desc: 'Район шумный, зато аренда не простаивает.', cost: 48000, downPay: 4000, cashflow: 150 },
-    { kind: 'realty', id: 'garage1', title: 'Гараж-бокс', desc: 'Сдаётся соседу под мастерскую.', cost: 8000, downPay: 2000, cashflow: 60 },
-    { kind: 'realty', id: 'parking1', title: 'Машиноместо в центре', desc: 'Паркинг в дефиците, очередь из арендаторов.', cost: 12000, downPay: 3000, cashflow: 80 },
-    { kind: 'cd', id: 'CD10', title: 'Депозит (CD)', desc: 'Сертификат на $10 000 под 5% годовых.', price: 10000, cashflow: 45 },
-    { kind: 'biz', id: 'coffee1', title: 'Кофе-точка у метро', desc: 'Партнёр варит, ты вложился. Доля прибыли.', cost: 15000, downPay: 5000, cashflow: 140 },
-    { kind: 'biz', id: 'photob1', title: 'Фотобудка в ТЦ', desc: 'Стоит себе и печатает деньги мелочью.', cost: 9000, downPay: 3000, cashflow: 90 }
+  // ---- Предупреждения: игра предупреждает, ты решаешь ----
+  // fixCost сейчас · через delay месяцев ударит hitCost, если проигнорил
+  var WARNINGS = [
+    { id: 'moto-to', title: 'Байк просит ТО', desc: 'Цепь и колодки на подходе.', fixCost: 150, delay: 2, hitCost: 500,
+      hitText: 'Байк встал посреди дороги: эвакуатор + срочный ремонт.',
+      lesson: 'Обслуживание всегда дешевле поломки. В деньгах — в разы.' },
+    { id: 'tooth', title: 'Зуб побаливает', desc: 'Пока терпимо.', fixCost: 200, delay: 3, hitCost: 900,
+      hitText: 'Дотянул: канал + коронка.',
+      lesson: 'Тело — как байк: чем позже чинишь, тем дороже счёт.' },
+    { id: 'client', title: 'Клиент бота недоволен', desc: 'Просит доработку, ты тянешь.', fixCost: 100, delay: 2, hitCost: 0, dropAsset: 'bot1',
+      hitText: 'Клиент ушёл. Подписка закрылась.',
+      lesson: 'Пассивный доход пассивен только пока ты держишь качество.' },
+    { id: 'visa', title: 'Виза заканчивается', desc: 'Ран через месяц-два.', fixCost: 120, delay: 2, hitCost: 600,
+      hitText: 'Просрочка: штраф + срочный вылет.',
+      lesson: 'Календарные расходы не сюрприз — их можно и нужно планировать.' },
+    { id: 'laptop', title: 'Ноут подтормаживает', desc: 'Чистка и замена термопасты помогут.', fixCost: 80, delay: 3, hitCost: 700,
+      hitText: 'Умер в дедлайн: срочная замена диска + потерянные дни.',
+      lesson: 'Рабочий инструмент — это актив. За активами ухаживают.' }
   ];
 
-  // ---- Крупные сделки ----
-  var BIG_DEALS = [
-    { kind: 'realty', id: 'duplex1', title: 'Дуплекс', desc: 'Две квартиры под сдачу, район растёт.', cost: 110000, downPay: 12000, cashflow: 320 },
-    { kind: 'realty', id: 'four1', title: 'Дом на 4 квартиры', desc: 'Полностью заселён, управляющий на месте.', cost: 180000, downPay: 16000, cashflow: 480 },
-    { kind: 'realty', id: 'eight1', title: 'Дом на 8 квартир', desc: 'Хозяин устал, продаёт с дисконтом.', cost: 320000, downPay: 32000, cashflow: 1100 },
-    { kind: 'realty', id: 'mini1', title: 'Мини-склад', desc: '20 боксов самохранения у трассы.', cost: 150000, downPay: 20000, cashflow: 600 },
-    { kind: 'biz', id: 'laundry', title: 'Прачечная', desc: 'Автоматы работают сами, обслуживание раз в неделю.', cost: 60000, downPay: 15000, cashflow: 450 },
-    { kind: 'biz', id: 'carwash', title: 'Автомойка', desc: 'Самообслуживание, аренда земли включена.', cost: 120000, downPay: 25000, cashflow: 800 },
-    { kind: 'biz', id: 'pizza', title: 'Доля в пиццерии', desc: 'Франшиза, управляет партнёр. Ты — пассивный инвестор.', cost: 90000, downPay: 18000, cashflow: 500 },
-    { kind: 'biz', id: 'vending', title: 'Сеть вендинга', desc: '12 кофейных автоматов в бизнес-центрах.', cost: 40000, downPay: 10000, cashflow: 300 },
-    { kind: 'realty', id: 'duplex2', title: 'Дуплекс у пляжа', desc: 'Сезонная аренда перекрывает простой зимой.', cost: 130000, downPay: 14000, cashflow: 380 },
-    { kind: 'realty', id: 'four2', title: 'Дом на 4 квартиры (аукцион)', desc: 'Банк сливает залог. Нужен быстрый кэш.', cost: 160000, downPay: 14000, cashflow: 520 },
-    { kind: 'realty', id: 'six1', title: 'Дом на 6 квартир', desc: 'Стабильный район, дом ухожен.', cost: 240000, downPay: 24000, cashflow: 750 },
-    { kind: 'biz', id: 'hostel1', title: 'Хостел на 20 коек', desc: 'Управляющая пара живёт там же, всё на них.', cost: 100000, downPay: 20000, cashflow: 650 },
-    { kind: 'biz', id: 'gym1', title: 'Зал единоборств', desc: 'Тренеры арендуют часы, ты владеешь помещением.', cost: 140000, downPay: 28000, cashflow: 850 },
-    { kind: 'biz', id: 'dark1', title: 'Дарк-китчен', desc: 'Кухня под доставку, три бренда на одной плите.', cost: 70000, downPay: 16000, cashflow: 480 },
-    { kind: 'realty', id: 'store1', title: 'Помещение под магазин', desc: 'Сетевой арендатор, договор на 5 лет.', cost: 200000, downPay: 22000, cashflow: 700 },
-    { kind: 'biz', id: 'billboard1', title: '3 рекламных щита', desc: 'У трассы. Забиты рекламой на год вперёд.', cost: 50000, downPay: 12000, cashflow: 380 }
+  // ---- Редкие события жизни (бьют по кэшу, подушка = броня) ----
+  var LIFE_EVENTS = [
+    { id: 'med', title: 'Отравился, три дня лёжа', cost: 250, lesson: 'Подушка — это спокойствие болеть, не считая дни.' },
+    { id: 'fam', title: 'Родне срочно нужна помощь', cost: 400, lesson: 'Семья вне бюджета. Именно поэтому бюджет должен иметь запас.' },
+    { id: 'rain', title: 'Сезон дождей залил комнату', cost: 300, lesson: 'Форс-мажор не спрашивает, удачный ли месяц.' },
+    { id: 'phone', title: 'Телефон утонул', cost: 350, lesson: 'Техника смертна. Амортизация — это не бухгалтерия, а жизнь.' },
+    { id: 'bonus', title: 'Премия за проект', cost: -500, lesson: 'Внезапные деньги — проверка: потратишь или направишь в поток?' },
+    { id: 'gift', title: 'Вернули старый долг', cost: -300, lesson: 'Деньги вернулись — реши их судьбу до того, как они растворятся.' }
   ];
 
-  // ---- Соблазны (обязательные траты) ----
-  var DOODADS = [
-    { title: 'Новый смартфон', desc: 'Вышел новый флагман. Старый «уже не тот».', cost: 600 },
-    { title: 'Отпуск у моря', desc: 'Горящий тур. Ты заслужил, правда?', cost: 1200 },
-    { title: 'Ужин в ресторане', desc: 'Юбилей у друга, неудобно отказаться.', cost: 150 },
-    { title: 'Абонемент в фитнес', desc: 'С понедельника — новая жизнь. Оплата за год.', cost: 300 },
-    { title: 'Ремонт машины', desc: 'Загорелся чек. Сюрприз.', cost: 800 },
-    { title: 'Новые кроссовки', desc: 'Лимитированная коллаборация.', cost: 180 },
-    { title: 'Приставка', desc: 'Все друзья уже играют.', cost: 400 },
-    { title: 'Кофе навынос', desc: 'Мелочь? За месяц набежало.', cost: 60 },
-    { title: 'Стоматолог', desc: 'Дотянул до боли. Теперь дороже.', cost: 900 },
-    { title: 'Свадьба у родни', desc: 'Конверт + костюм + перелёт.', cost: 1000 },
-    { title: 'Большой телевизор', desc: 'Чёрная пятница! Скидка 40%!', cost: 700 },
-    { title: 'Курс «успешный успех»', desc: 'Марафон желаний от блогера.', cost: 350 },
-    { title: 'Подарок на день рождения', desc: 'У мамы юбилей, тут не сэкономишь.', cost: 250 },
-    { title: 'Штраф за парковку', desc: 'Стоял «на минутку».', cost: 120 },
-    { title: 'Новая куртка', desc: 'Старая «вышла из моды».', cost: 280 },
-    { title: 'Подписки', desc: 'Кино + музыка + облако. Копейки? За год — нет.', cost: 90 },
-    { title: 'Ветеринар', desc: 'Кот что-то съел. Опять.', cost: 400 },
-    { title: 'Сломался холодильник', desc: 'Морозилка потекла ночью.', cost: 650 },
-    { title: 'Корпоратив', desc: 'Тайный Санта + костюм + такси домой.', cost: 200 },
-    { title: 'Заказ еды всю неделю', desc: 'Готовить было лень.', cost: 180 },
-    { title: 'Билеты на концерт', desc: 'Любимая группа, последний ряд, всё равно дорого.', cost: 320 },
-    { title: 'Разбил экран телефона', desc: 'Выскользнул. Как всегда.', cost: 250 },
-    { title: 'Косметолог', desc: '«Инвестиция в себя», сказала реклама.', cost: 300 },
-    { title: 'Донат в игре', desc: 'Скин был лимитированный.', cost: 80 },
-    { title: 'Такси месяц подряд', desc: 'Дождь, лень, «один разок».', cost: 240 },
-    { title: 'Новый пылесос-робот', desc: 'Старый «плохо ездил по углам».', cost: 550 },
-    { title: 'Аптечка разом', desc: 'Сезон простуд накрыл всю семью.', cost: 170 },
-    { title: 'Обслуживание машины', desc: 'Плановое ТО, но с «допами» от сервиса.', cost: 600 },
-    { title: 'Протёк потолок', desc: 'Соседи сверху «забыли» про кран.', cost: 900 }
+  // ---- Соблазны: показываются как «возможности», но это ловушки ----
+  var TEMPTATIONS = [
+    { id: 'car', title: 'Машина в кредит', desc: 'Взнос 3000, платёж $260/мес три года. Статус!', cost: 3000, addExpense: 260, trap: true,
+      lesson: 'Выглядит как уровень жизни, работает как дыра в потоке: −260 каждый месяц, годами.' },
+    { id: 'watch', title: 'Часы, которые давно смотришь', desc: 'Красиво. Дорого. Не приносит ничего.', cost: 3200, trap: true,
+      lesson: 'Статус покупают из свободного потока, когда пассив уже кормит. Не из подушки.' },
+    { id: 'iphone', title: 'Новый айфон в рассрочку', desc: '«Всего» $90 в месяц.', cost: 200, addExpense: 90, trap: true,
+      lesson: 'Рассрочка — это аренда чужой вещи, которую ты считаешь своей.' },
+    { id: 'course-scam', title: 'Марафон «успешный успех»', desc: 'Блогер обещает миллион за месяц.', cost: 500, trap: true,
+      lesson: 'Курс без навыка на выходе — соблазн, притворившийся инвестицией.' }
   ];
 
-  // ---- События рынка ----
-  var MARKET_EVENTS = [
-    { kind: 'buyer_realty', title: 'Покупатель на жильё', desc: 'Инвестор скупает малые квартиры. Даёт цену покупки +30%.', premium: 0.3, target: 'realty_small' },
-    { kind: 'buyer_realty', title: 'Горячий рынок', desc: 'Риелтор предлагает продать любую твою недвижимость за цену покупки +50%.', premium: 0.5, target: 'realty_any' },
-    { kind: 'buyer_biz', title: 'Покупатель на бизнес', desc: 'Сеть выкупает малый бизнес: цена покупки +40%.', premium: 0.4, target: 'biz' },
-    { kind: 'stock_split', title: 'Сплит акций', desc: 'Акции MYT4U дробятся 2 к 1 — у тебя вдвое больше акций.', stock: 'MYT4U' },
-    { kind: 'stock_crash', title: 'Обвал рынка', desc: 'Паника! Все акции падают вдвое. У кого кэш — тот на коне.', factor: 0.5 },
-    { kind: 'stock_rally', title: 'Ралли рынка', desc: 'Все акции удваиваются. Продавать или держать?', factor: 2 },
-    { kind: 'rent_up', title: 'Аренда дорожает', desc: 'Спрос на съём вырос: +10% к кэшфлоу твоей недвижимости.', factor: 1.1 },
-    { kind: 'tax_refund', title: 'Налоговый вычет', desc: 'Государство вернуло переплату.', cash: 800 }
-  ];
+  // ---- Отдых ----
+  var REST = {
+    small: { id: 'rest-s', title: 'Выходные у моря', cost: 150, energy: 30, lesson: 'Отдых — не награда за работу, а её условие.' },
+    big: { id: 'rest-b', title: 'Неделя с Sofi без ноута', cost: 600, energy: 60, lesson: 'Ради этого всё и затевалось. Плати из потока — и не считай виной.' }
+  };
 
-  // ---- Константы ----
   var RULES = {
-    loanStep: 1000,          // кредит берётся кратно этой сумме
-    loanRate: 0.10,          // 10% от тела кредита каждый payday
-    charityCost: 0.10,       // 10% совокупного дохода
-    charityTurns: 3,         // сколько ходов действует бонус
-    downsizePayFactor: 1,    // увольнение: оплатить 1× полных расходов
-    downsizeSkip: 1,         // и пропустить 1 ход
-    maxChildren: 3,
-    startCashBonus: 0        // резерв
+    loanRate: 0.02,          // вынужденный займ: 2% в месяц
+    loanMinShare: 0.03,      // мин. платёж — 3% тела
+    bankruptDebt: 30000,     // долг больше — банкротство
+    maxMonths: 360,          // 30 лет
+    energyDrop: 8,           // усталость в месяц
+    burnoutPenalty: 0.25,    // −25% зарплаты при выгорании
+    opportunitiesPerMonth: 2,
+    temptationChance: 0.35,
+    warningChance: 0.3,
+    lifeEventChance: 0.18
   };
 
   return {
-    PROFESSIONS: PROFESSIONS,
-    BOARD: BOARD,
-    SMALL_DEALS: SMALL_DEALS,
-    BIG_DEALS: BIG_DEALS,
-    DOODADS: DOODADS,
-    MARKET_EVENTS: MARKET_EVENTS,
-    RULES: RULES
+    START: START, OPPORTUNITIES: OPPORTUNITIES, SKILLS: SKILLS,
+    WARNINGS: WARNINGS, LIFE_EVENTS: LIFE_EVENTS, TEMPTATIONS: TEMPTATIONS,
+    REST: REST, RULES: RULES
   };
 })();
 

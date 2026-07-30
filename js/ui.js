@@ -1,437 +1,418 @@
-/* ═══════ UI: рендер доски, фишка, карточки, панель ═══════ */
+/* ═══════ UI v2: сетап, месяц, карточки, панель, график ═══════ */
 
 var GameUI = (function () {
   'use strict';
 
   var D = GameData;
   var game = null;
-  var cells = [];        // DOM клеток по индексу доски
-  var busy = false;      // блок кнопок во время анимации
 
   function $(id) { return document.getElementById(id); }
-  function fmt(n) { return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('ru-RU'); }
+  function fmt(n) { return (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('ru-RU'); }
+  function el(cls, html) { var d = document.createElement('div'); d.className = cls; if (html) { d.innerHTML = html; } return d; }
 
-  /* ---------- интро: карточки профессий ---------- */
-  function renderIntro() {
-    var grid = $('prof-grid');
-    grid.innerHTML = '';
-    D.PROFESSIONS.forEach(function (p, i) {
-      var exp = p.taxes + p.otherExpenses + p.mortgage + p.carLoan + p.cardLoan;
-      var card = document.createElement('button');
-      card.className = 'prof-card';
-      card.style.setProperty('--i', i);
-      card.innerHTML =
-        '<div class="prof-emoji">' + p.emoji + '</div>' +
-        '<div class="prof-name">' + p.title + '</div>' +
-        '<div class="prof-nums">' +
-        '<span>Зарплата <b>' + fmt(p.salary) + '</b></span>' +
-        '<span>Расходы <b>' + fmt(exp) + '</b></span>' +
-        '<span>На руках <b>' + fmt(p.cash) + '</b></span>' +
-        '</div>' +
-        '<div class="prof-flow">Кэшфлоу <b>+' + fmt(p.salary - exp) + '</b></div>';
-      card.addEventListener('click', function () { startGame(p.id); });
-      grid.appendChild(card);
+  /* ---------- сетап ---------- */
+  function renderSetup() {
+    var box = $('setup-expenses');
+    box.innerHTML = '';
+    D.START.expenses.forEach(function (e) {
+      var row = document.createElement('label');
+      row.className = 'setup-row';
+      row.innerHTML = '<span>' + e.label + '</span>';
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0'; inp.step = '10';
+      inp.value = e.amount; inp.dataset.id = e.id;
+      inp.addEventListener('input', updateSetupSummary);
+      row.appendChild(inp);
+      box.appendChild(row);
     });
+    $('inp-salary').addEventListener('input', updateSetupSummary);
+    updateSetupSummary();
   }
 
-  /* ---------- доска ---------- */
-  // 24 клетки по периметру грида 7×7 по часовой с верхнего левого угла
-  function cellGridPos(i) {
-    if (i <= 6) { return { r: 1, c: i + 1 }; }          // верхний ряд →
-    if (i <= 11) { return { r: i - 5, c: 7 }; }          // правая колонка ↓
-    if (i <= 18) { return { r: 7, c: 19 - i }; }         // нижний ряд ←
-    return { r: 25 - i, c: 1 };                          // левая колонка ↑
-  }
-
-  function renderBoard() {
-    var board = $('board');
-    cells = [];
-    D.BOARD.forEach(function (cell, i) {
-      var el = document.createElement('div');
-      el.className = 'cell type-' + cell.type + (cell.corner ? ' corner' : '');
-      var pos = cellGridPos(i);
-      el.style.gridRow = pos.r;
-      el.style.gridColumn = pos.c;
-      el.innerHTML = '<div class="cell-emoji">' + cell.emoji + '</div>' +
-                     '<div class="cell-title">' + cell.title + '</div>';
-      board.appendChild(el);
-      cells.push(el);
-    });
-  }
-
-  function moveTokenTo(i, instant) {
-    var el = cells[i];
-    var board = $('board');
-    var token = $('token');
-    var br = board.getBoundingClientRect();
-    var cr = el.getBoundingClientRect();
-    token.style.left = (cr.left - br.left + cr.width / 2) + 'px';
-    token.style.top = (cr.top - br.top + cr.height / 2) + 'px';
-    cells.forEach(function (c) { c.classList.remove('active'); });
-    el.classList.add('active');
-    if (!instant) {
-      token.classList.remove('hop');
-      void token.offsetWidth;
-      token.classList.add('hop');
+  function readSetup() {
+    var expenses = {};
+    var inputs = $('setup-expenses').querySelectorAll('input');
+    for (var i = 0; i < inputs.length; i++) {
+      expenses[inputs[i].dataset.id] = Math.max(0, Number(inputs[i].value) || 0);
     }
+    return { salary: Math.max(0, Number($('inp-salary').value) || 0), expenses: expenses };
+  }
+
+  function updateSetupSummary() {
+    var s = readSetup();
+    var exp = 0;
+    Object.keys(s.expenses).forEach(function (k) { exp += s.expenses[k]; });
+    $('sum-income').textContent = fmt(s.salary);
+    $('sum-exp').textContent = fmt(exp);
+    var flow = s.salary - exp;
+    $('sum-flow').textContent = (flow >= 0 ? '+' : '') + fmt(flow);
+    $('sum-flow').style.color = flow >= 0 ? 'var(--gain)' : 'var(--loss)';
   }
 
   /* ---------- старт ---------- */
-  function startGame(profId) {
+  function startGame() {
     game = new GameEngine.Game({});
-    game.start(profId);
+    game.start(readSetup());
     $('intro').classList.add('hidden');
     $('game').classList.remove('hidden');
-    requestAnimationFrame(function () {
-      moveTokenTo(0, true);
-      render();
-    });
+    render();
   }
 
-  /* ---------- бросок ---------- */
-  function onRoll() {
-    if (busy || !game) { return; }
-    var r = game.roll();
-    if (r.blocked) { return; }
-    busy = true;
-    $('btn-roll').disabled = true;
-
-    if (r.skipped) {
-      $('center-note').textContent = 'Ход пропущен (после увольнения)';
-      busy = false; $('btn-roll').disabled = false;
-      render();
-      return;
+  /* ---------- трек года ---------- */
+  function renderTrack(snap) {
+    var track = $('year-track');
+    track.innerHTML = '';
+    var inYear = ((snap.month - 1) % 12);
+    for (var i = 0; i < 12; i++) {
+      var c = el('yt-cell' + (i < inYear ? ' done' : ''));
+      track.appendChild(c);
     }
+    var token = el('yt-token');
+    token.textContent = '🐭';
+    token.style.left = 'calc(' + (inYear / 12 * 100) + '% + 2px)';
+    track.appendChild(token);
+    $('m-num').textContent = 'Месяц ' + snap.month;
+    $('m-year').textContent = snap.year + '-й год из 30';
+  }
 
-    // кубики
-    var d1 = $('die1'), d2 = $('die2');
-    d1.classList.remove('rolling'); void d1.offsetWidth; d1.classList.add('rolling');
-    d1.querySelector('span').textContent = r.dice;
-    if (r.dice2 > 0) {
-      d2.classList.remove('hidden');
-      d2.classList.remove('rolling'); void d2.offsetWidth; d2.classList.add('rolling');
-      d2.querySelector('span').textContent = r.dice2;
-    } else {
-      d2.classList.add('hidden');
-    }
+  /* ---------- карточки месяца ---------- */
+  function renderCards(snap) {
+    var flow = $('cards-flow');
+    flow.innerHTML = '';
+    var any = false;
 
-    // фишка шагает по клеткам
-    var steps = r.dice + r.dice2;
-    var cur = r.from;
-    var stepN = 0;
-    var timer = setInterval(function () {
-      stepN++;
-      cur = (cur + 1) % D.BOARD.length;
-      moveTokenTo(cur);
-      if (cur === 0 && stepN < steps) { paydayFlash(); }
-      if (stepN >= steps) {
-        clearInterval(timer);
-        setTimeout(function () { afterLand(r); }, 260);
+    snap.warnings.forEach(function (w) {
+      any = true;
+      var c = el('mcard warn');
+      c.appendChild(el('mcard-tag', '⚠️ предупреждение'));
+      c.appendChild(el('mcard-title', w.title));
+      c.appendChild(el('mcard-desc', w.desc + ' Если тянуть — будет сильно дороже.'));
+      var nums = el('mcard-nums');
+      nums.appendChild(el('mcard-num', '<span>Решить сейчас</span><b>' + fmt(w.fixCost) + '</b>'));
+      nums.appendChild(el('mcard-num', '<span>Осталось месяцев</span><b>' + w.monthsLeft + '</b>'));
+      c.appendChild(nums);
+      var acts = el('mcard-acts');
+      var b = document.createElement('button');
+      b.className = 'btn btn-gold'; b.textContent = 'Решить за ' + fmt(w.fixCost);
+      var err = el('mcard-err');
+      b.addEventListener('click', function () {
+        var r = game.fixWarning(w.id);
+        if (r.ok) { showLesson('РЕШЕНО', w.title, r.lesson); } else { err.textContent = r.why || 'нельзя'; }
+      });
+      acts.appendChild(b);
+      c.appendChild(acts);
+      c.appendChild(err);
+      flow.appendChild(c);
+    });
+
+    (snap.offer ? snap.offer.opportunities : []).forEach(function (o) {
+      any = true;
+      var c = el('mcard');
+      var tag = o.network ? 'связи' : (o.spec ? 'ставка' : (o.liquid ? 'бумаги' : 'поток'));
+      c.appendChild(el('mcard-tag', tag));
+      c.appendChild(el('mcard-title', o.title));
+      c.appendChild(el('mcard-desc', o.desc));
+      var nums = el('mcard-nums');
+      nums.appendChild(el('mcard-num', '<span>Цена</span><b>' + fmt(o.cost) + '</b>'));
+      if (o.flow) {
+        nums.appendChild(el('mcard-num hl', '<span>Поток</span><b>+' + fmt(o.flow) + '/мес</b>'));
+        nums.appendChild(el('mcard-num', '<span>Окупаемость</span><b>' + Math.round(o.cost / o.flow) + ' мес</b>'));
       }
-    }, 170);
-  }
-
-  function paydayFlash() {
-    var b = $('board');
-    b.classList.remove('payday-flash');
-    void b.offsetWidth;
-    b.classList.add('payday-flash');
-  }
-
-  function afterLand(r) {
-    busy = false;
-    render();
-    var snap = game.snapshot();
-
-    if (snap.lost) { showFinale(false, snap); return; }
-    if (snap.won) { showFinale(true, snap); return; }
-
-    if (snap.pendingCard) {
-      var pc = snap.pendingCard;
-      if (pc.type === 'dealChoice') { showDealChoice(); return; }
-      if (pc.type === 'charity') { showCharity(); return; }
-      if (pc.type === 'marketOffer') { showMarketOffer(pc.card); return; }
-    }
-
-    // информационные события клетки
-    var ev = null;
-    for (var i = 0; i < r.events.length; i++) {
-      if (r.events[i].type !== 'payday') { ev = r.events[i]; }
-    }
-    if (ev && ev.type === 'doodad') { showInfoCard('СОБЛАЗН', ev.card.title, ev.card.desc, [{ k: 'Потрачено', v: fmt(-ev.card.cost) }], true); return; }
-    if (ev && ev.type === 'market' && ev.card) { showInfoCard('РЫНОК', ev.card.title, ev.card.desc, [], false); return; }
-    if (ev && ev.type === 'downsize') { showInfoCard('УВОЛЬНЕНИЕ', 'Сокращение на работе', 'Оплати полные расходы и пропусти ход. Пассивный доход в такие моменты — лучшая страховка.', [{ k: 'Оплачено', v: fmt(-ev.paid) }], true); return; }
-    if (ev && ev.type === 'downsize_saved') { showInfoCard('ПРОНЕСЛО', 'Сокращение прошло мимо', 'В этот раз уволили не тебя. Совсем недавно уже был удар — второй подряд игра не даёт.', [], false); return; }
-    if (ev && ev.type === 'baby') { showInfoCard('СЕМЬЯ', 'У тебя родился ребёнок!', 'Расходы выросли. Теперь выйти из бегов чуть сложнее — но и мотивации больше.', [{ k: 'Детей', v: String(ev.children) }], false); return; }
-
-    $('btn-roll').disabled = false;
-  }
-
-  /* ---------- карточки ---------- */
-  function openCard() { $('overlay').classList.remove('hidden'); }
-  function closeCard() {
-    $('overlay').classList.add('hidden');
-    $('btn-roll').disabled = false;
-    render();
-  }
-
-  function cardBase(tag, title, desc, nums, bad) {
-    $('card-tag').textContent = tag;
-    $('card-tag').className = 'card-tag' + (bad ? ' tag-bad' : '');
-    $('card-title').textContent = title;
-    $('card-desc').textContent = desc;
-    var numsEl = $('card-nums');
-    numsEl.innerHTML = '';
-    (nums || []).forEach(function (n) {
-      var row = document.createElement('div');
-      row.className = 'card-num' + (n.hl ? ' hl' : '');
-      row.innerHTML = '<span>' + n.k + '</span><b>' + n.v + '</b>';
-      numsEl.appendChild(row);
+      if (o.risk) { nums.appendChild(el('mcard-num', '<span>Риск простоя</span><b>' + Math.round(o.risk * 100) + '%/мес</b>')); }
+      c.appendChild(nums);
+      var acts = el('mcard-acts');
+      var b = document.createElement('button');
+      b.className = 'btn btn-gold'; b.textContent = 'Взять';
+      var err = el('mcard-err');
+      b.addEventListener('click', function () {
+        var r = game.buyOpportunity(o.id);
+        if (r.ok) { showLesson('КУПЛЕНО', o.title, r.lesson); } else { err.textContent = r.why || 'нельзя'; }
+      });
+      acts.appendChild(b);
+      c.appendChild(acts);
+      c.appendChild(err);
+      flow.appendChild(c);
     });
+
+    if (snap.offer && snap.offer.temptation) {
+      any = true;
+      var t = snap.offer.temptation;
+      var c2 = el('mcard');
+      c2.appendChild(el('mcard-tag', 'хочется'));
+      c2.appendChild(el('mcard-title', t.title));
+      c2.appendChild(el('mcard-desc', t.desc));
+      var nums2 = el('mcard-nums');
+      nums2.appendChild(el('mcard-num', '<span>Цена</span><b>' + fmt(t.cost) + '</b>'));
+      if (t.addExpense) { nums2.appendChild(el('mcard-num', '<span>Платёж дальше</span><b>' + fmt(t.addExpense) + '/мес</b>')); }
+      c2.appendChild(nums2);
+      var acts2 = el('mcard-acts');
+      var bBuy = document.createElement('button');
+      bBuy.className = 'btn btn-ivory'; bBuy.textContent = 'Купить';
+      var bNo = document.createElement('button');
+      bNo.className = 'btn btn-pass'; bNo.textContent = 'Пройти мимо';
+      var err2 = el('mcard-err');
+      bBuy.addEventListener('click', function () {
+        var r = game.buyTemptation();
+        if (r.ok) { showLesson('КУПЛЕНО', t.title, r.lesson); } else { err2.textContent = r.why || 'нельзя'; }
+      });
+      bNo.addEventListener('click', function () {
+        var r = game.declineTemptation();
+        showLesson('МИМО', t.title, r.lesson);
+      });
+      acts2.appendChild(bBuy); acts2.appendChild(bNo);
+      c2.appendChild(acts2);
+      c2.appendChild(err2);
+      flow.appendChild(c2);
+    }
+
+    if (!any) { flow.appendChild(el('cards-empty', 'Тихий месяц. Реши, куда направить свободные деньги — и живи дальше.')); }
+  }
+
+  /* ---------- модалки ---------- */
+  function openCard() { $('overlay').classList.remove('hidden'); }
+  function closeCard() { $('overlay').classList.add('hidden'); render(); }
+
+  function cardBase(tag, title, desc) {
+    $('card-tag').textContent = tag;
+    $('card-tag').className = 'card-tag';
+    $('card-title').textContent = title;
+    $('card-desc').textContent = desc || '';
+    $('card-nums').innerHTML = '';
     $('card-actions').innerHTML = '';
   }
 
   function addAction(label, cls, fn) {
     var b = document.createElement('button');
-    b.className = 'btn ' + cls;
-    b.textContent = label;
+    b.className = 'btn ' + cls; b.textContent = label;
     b.addEventListener('click', fn);
     $('card-actions').appendChild(b);
     return b;
   }
 
-  function addErr() {
-    var e = document.createElement('div');
-    e.className = 'card-err';
-    $('card-actions').appendChild(e);
-    return e;
-  }
-
-  function showInfoCard(tag, title, desc, nums, bad) {
-    cardBase(tag, title, desc, nums, bad);
-    addAction('Понятно', 'btn-gold', closeCard);
+  function showLesson(tag, title, lesson) {
+    cardBase(tag, title, '');
+    if (lesson) { $('card-nums').appendChild(el('lesson', lesson)); }
+    addAction('Дальше', 'btn-gold', closeCard);
     openCard();
   }
 
-  function showDealChoice() {
-    cardBase('СДЕЛКА', 'Какую сделку смотрим?', 'Малые сделки дешёвые: акции и небольшая недвижимость. Крупные требуют капитала, но кэшфлоу у них сильнее.', []);
-    addAction('Малая', 'btn-ivory', function () {
-      var res = game.chooseDeal('small');
-      showDealCard(res.card);
+  function showMonthResults(events) {
+    if (!events.length) { render(); return; }
+    cardBase('ИТОГИ МЕСЯЦА', 'Пока месяц шёл…', '');
+    var box = $('card-nums');
+    events.forEach(function (e) {
+      box.appendChild(el('mcard-num', '<span style="text-align:left">' + e.text + '</span>'));
+      if (e.lesson) { box.appendChild(el('lesson', e.lesson)); }
     });
-    addAction('Крупная', 'btn-gold', function () {
-      var res = game.chooseDeal('big');
-      showDealCard(res.card);
+    addAction('Дальше', 'btn-gold', function () {
+      var snap = game.snapshot();
+      if (snap.status !== 'playing') { closeCard(); showFinale(snap); } else { closeCard(); }
     });
     openCard();
   }
 
-  function showDealCard(card) {
+  function showSkills() {
     var snap = game.snapshot();
-    if (card.kind === 'stock') {
-      var divTxt = card.dividend > 0 ? '+$' + card.dividend + '/акция каждый круг' : 'нет';
-      cardBase('АКЦИИ', card.title, card.desc, [
-        { k: 'Цена за акцию', v: fmt(card.price) },
-        { k: 'Исторический диапазон', v: '$' + card.range[0] + '–$' + card.range[1] },
-        { k: 'Дивиденды', v: divTxt, hl: card.dividend > 0 },
-        { k: 'Твои наличные', v: fmt(snap.cash) }
-      ]);
-      var err = null;
-      [10, 50, 100].forEach(function (q) {
-        addAction(q + ' шт (' + fmt(card.price * q) + ')', 'btn-ivory', function () {
-          var r = game.buyStock(q);
-          if (r.ok) { closeCard(); } else if (err) { err.textContent = r.reason || 'нельзя'; }
+    cardBase('НАВЫКИ', 'Вложить в себя', 'Зарплата растёт навсегда — но платишь сейчас, а ждёшь месяцы.');
+    var box = $('card-nums');
+    D.SKILLS.forEach(function (sk) {
+      var learning = snap.skills.some(function (x) { return x.id === sk.id; });
+      var done = game.state.owned['skill-' + sk.id];
+      var row = el('mcard-num', '<span>' + sk.title + (done ? ' ✅' : (learning ? ' ⏳' : '')) + '</span><b>' + fmt(sk.cost) + ' → +' + fmt(sk.salaryUp) + '/мес</b>');
+      box.appendChild(row);
+      if (!learning && !done) {
+        var b = document.createElement('button');
+        b.className = 'btn btn-ivory'; b.style.marginBottom = '8px';
+        b.textContent = 'Учить: ' + sk.title + ' (' + sk.months + ' мес)';
+        b.addEventListener('click', function () {
+          var r = game.learnSkill(sk.id);
+          if (r.ok) { showLesson('УЧИШЬСЯ', sk.title, r.lesson); }
+          else { b.textContent = r.why || 'нельзя'; }
         });
-      });
-      var maxQ = Math.floor(snap.cash / card.price);
-      if (maxQ > 0) {
-        addAction('Максимум: ' + maxQ + ' шт', 'btn-gold', function () {
-          var r = game.buyStock(maxQ);
-          if (r.ok) { closeCard(); } else if (err) { err.textContent = r.reason || 'нельзя'; }
-        });
+        box.appendChild(b);
       }
-      addAction('Пас', 'btn-pass', function () { game.passCard(); closeCard(); });
-      err = addErr();
-    } else {
-      var need = card.kind === 'cd' ? card.price : card.downPay;
-      var nums = [];
-      if (card.kind !== 'cd') { nums.push({ k: 'Полная цена', v: fmt(card.cost) }); }
-      nums.push({ k: card.kind === 'cd' ? 'Вложение' : 'Первый взнос', v: fmt(need) });
-      nums.push({ k: 'Кэшфлоу', v: '+' + fmt(card.cashflow || 0) + '/круг', hl: (card.cashflow || 0) > 0 });
-      nums.push({ k: 'Твои наличные', v: fmt(snap.cash) });
-      cardBase(card.kind === 'biz' ? 'БИЗНЕС' : (card.kind === 'cd' ? 'ДЕПОЗИТ' : 'НЕДВИЖИМОСТЬ'), card.title, card.desc, nums);
-      var err2 = null;
-      addAction('Купить', 'btn-gold', function () {
-        var r = game.buyProperty();
-        if (r.ok) { closeCard(); } else if (err2) { err2.textContent = r.reason || 'не хватает денег — возьми кредит и попробуй снова'; }
+    });
+    addAction('Закрыть', 'btn-pass', closeCard);
+    openCard();
+  }
+
+  function showRest() {
+    var snap = game.snapshot();
+    cardBase('ОТДЫХ', 'Энергия: ' + snap.energy + '%', 'Без энергии доход падает. Отдых — часть системы, не слабость.');
+    var box = $('card-nums');
+    [D.REST.small, D.REST.big].forEach(function (r) {
+      var b = document.createElement('button');
+      b.className = 'btn btn-ivory'; b.style.marginBottom = '8px';
+      b.textContent = r.title + ' — ' + fmt(r.cost) + ' (+' + r.energy + ' энергии)';
+      b.addEventListener('click', function () {
+        var res = game.rest(r === D.REST.big ? 'big' : 'small');
+        if (res.ok) { showLesson('ОТДОХНУЛ', r.title, res.lesson); } else { b.textContent = res.why; }
       });
-      addAction('Пас', 'btn-pass', function () { game.passCard(); closeCard(); });
-      err2 = addErr();
+      box.appendChild(b);
+    });
+    addAction('Закрыть', 'btn-pass', closeCard);
+    openCard();
+  }
+
+  function showDebt() {
+    var snap = game.snapshot();
+    cardBase('ДОЛГИ', snap.finance.debtTotal > 0 ? 'Тело долга: ' + fmt(snap.finance.debtTotal) : 'Долгов нет', snap.finance.debtTotal > 0 ? 'Каждый месяц долг растёт на 2%. Гасить = гарантированно богатеть.' : 'Так держать. Займ появляется, когда кэш уходит в минус.');
+    if (snap.finance.debtTotal > 0) {
+      var box = $('card-nums');
+      [500, 1000, 2000].forEach(function (amt) {
+        if (amt <= snap.cash) {
+          var b = document.createElement('button');
+          b.className = 'btn btn-ivory'; b.style.marginBottom = '8px';
+          b.textContent = 'Погасить ' + fmt(amt);
+          b.addEventListener('click', function () {
+            var r = game.repayDebt(amt);
+            if (r.ok) { showLesson('ПОГАШЕНО', fmt(amt), r.lesson); }
+          });
+          box.appendChild(b);
+        }
+      });
+      if (snap.cash > 0) {
+        var bAll = document.createElement('button');
+        bAll.className = 'btn btn-gold';
+        var maxPay = Math.min(snap.cash, snap.finance.debtTotal);
+        bAll.textContent = 'Погасить максимум: ' + fmt(maxPay);
+        bAll.addEventListener('click', function () {
+          var r = game.repayDebt(maxPay);
+          if (r.ok) { showLesson('ПОГАШЕНО', fmt(maxPay), r.lesson); }
+        });
+        $('card-nums').appendChild(bAll);
+      }
     }
+    addAction('Закрыть', 'btn-pass', closeCard);
     openCard();
-  }
-
-  function showCharity() {
-    var f = game.finance();
-    var cost = Math.round(f.totalIncome * D.RULES.charityCost);
-    cardBase('БЛАГОТВОРИТЕЛЬНОСТЬ', 'Пожертвовать 10% дохода?', 'Отдаёшь ' + fmt(cost) + ' — следующие ' + D.RULES.charityTurns + ' хода бросаешь два кубика и двигаешься быстрее.', [
-      { k: 'Стоимость', v: fmt(cost) },
-      { k: 'Бонус', v: '2 кубика × ' + D.RULES.charityTurns + ' хода', hl: true }
-    ]);
-    addAction('Пожертвовать', 'btn-gold', function () { game.charity(true); closeCard(); });
-    addAction('Отказаться', 'btn-pass', function () { game.charity(false); closeCard(); });
-    openCard();
-  }
-
-  function showMarketOffer(ev) {
-    var snap = game.snapshot();
-    var isBiz = ev.kind === 'buyer_biz';
-    var list = isBiz ? snap.biz : snap.realty;
-    cardBase('РЫНОК', ev.title, ev.desc + (list.length ? ' Что продаём?' : ' Но у тебя нет подходящих активов.'), []);
-    list.forEach(function (a, i) {
-      var price = Math.round(a.cost * (1 + ev.premium));
-      var gain = price - (a.cost - a.downPay);
-      addAction(a.title + ' → в карман ' + fmt(gain), 'btn-ivory', function () {
-        game.sellToOffer(i, isBiz ? 'biz' : 'realty');
-        closeCard();
-      });
-    });
-    addAction(list.length ? 'Ничего не продавать' : 'Понятно', 'btn-pass', function () {
-      game.declineOffer();
-      closeCard();
-    });
-    openCard();
-  }
-
-  /* ---------- банк ---------- */
-  function onLoan() {
-    var amount = prompt('Сколько взять? Кратно $1000. Платёж 10% от долга каждый payday.', '5000');
-    if (!amount) { return; }
-    var r = game.takeLoan(parseInt(amount, 10) || 0);
-    if (!r.ok) { alert(r.reason || 'Нельзя'); }
-    render();
-  }
-  function onRepay() {
-    var snap = game.snapshot();
-    if (snap.loan <= 0) { return; }
-    var amount = prompt('Сколько погасить? Кратно $1000. Долг: ' + fmt(snap.loan), String(Math.min(snap.loan, Math.floor(snap.cash / 1000) * 1000)));
-    if (!amount) { return; }
-    var r = game.repayLoan(parseInt(amount, 10) || 0);
-    if (!r.ok) { alert(r.reason || 'Нельзя'); }
-    render();
-  }
-
-  /* ---------- продажа акций из панели ---------- */
-  function sellStockUI(key) {
-    var snap = game.snapshot();
-    var st = snap.stocks[key];
-    if (!st) { return; }
-    var mid = st.avgPrice || 10;
-    var price = prompt('Продать ' + key + ' (' + st.qty + ' шт). По какой цене за акцию? Средняя покупка: $' + st.avgPrice, String(mid));
-    if (!price) { return; }
-    var qty = prompt('Сколько штук продать? (макс ' + st.qty + ')', String(st.qty));
-    if (!qty) { return; }
-    game.sellStock(key, Math.min(parseInt(qty, 10) || 0, st.qty), Math.max(1, parseInt(price, 10) || 0));
-    render();
   }
 
   /* ---------- финал ---------- */
-  function showFinale(won, snap) {
+  function showFinale(snap) {
     $('finale').classList.remove('hidden');
-    $('finale-emoji').textContent = won ? '🏆' : '💀';
-    $('finale-title').textContent = won ? 'ТЫ ВЫШЕЛ ИЗ КРЫСИНЫХ БЕГОВ' : 'БАНКРОТСТВО';
-    $('finale-sub').textContent = won
-      ? 'Пассивный доход ' + fmt(snap.finance.passive) + ' перекрыл расходы ' + fmt(snap.finance.expenses) +
-        '. Ходов: ' + snap.turn + ', кругов: ' + snap.laps + '. Деньги теперь работают на тебя.'
-      : 'Наличные ушли в минус, активов не осталось. Урок: подушка безопасности и активы важнее статусных трат. Попробуй ещё раз!';
+    var f = snap.finance;
+    if (snap.status === 'free') {
+      $('finale-emoji').textContent = '🏆';
+      $('finale-title').textContent = 'СВОБОДА';
+      $('finale-sub').textContent = 'Пассивный доход ' + fmt(f.passive) + ' перекрыл расходы ' + fmt(f.expenses) + ' за ' +
+        snap.freedomMonth + ' месяцев (' + Math.round(snap.freedomMonth / 12 * 10) / 10 + ' лет). Теперь работа — по желанию.';
+    } else if (snap.status === 'bankrupt') {
+      $('finale-emoji').textContent = '💀';
+      $('finale-title').textContent = 'ДОЛГИ ДОГНАЛИ';
+      $('finale-sub').textContent = 'Проценты обогнали поток. Урок: кассовые разрывы закрывают подушкой, а не займами. Попробуй ещё раз — теперь ты знаешь.';
+    } else {
+      $('finale-emoji').textContent = '⏳';
+      $('finale-title').textContent = 'ТРИДЦАТЬ ЛЕТ В БЕГАХ';
+      $('finale-sub').textContent = 'Жизнь прошла в работе. Кэш был, поток — нет. Деньги без активов — это просто отложенная зарплата.';
+    }
   }
 
-  /* ---------- рендер панели ---------- */
+  /* ---------- график ---------- */
+  function renderChart(snap) {
+    var svg = $('chart');
+    var h = snap.history;
+    if (h.length < 2) { svg.innerHTML = ''; return; }
+    var W = 300, H = 80, pad = 4;
+    var maxV = 1;
+    h.forEach(function (p) { maxV = Math.max(maxV, p.passive, p.expenses); });
+    function pts(key) {
+      return h.map(function (p, i) {
+        var x = pad + (W - 2 * pad) * i / (h.length - 1);
+        var y = H - pad - (H - 2 * pad) * (p[key] / maxV);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+    }
+    svg.innerHTML =
+      '<polyline points="' + pts('expenses') + '" fill="none" stroke="#c96a4e" stroke-width="1.5" opacity="0.85"/>' +
+      '<polyline points="' + pts('passive') + '" fill="none" stroke="#d4af6a" stroke-width="2"/>';
+  }
+
+  /* ---------- панель ---------- */
   var lastCash = null;
   function render() {
     if (!game) { return; }
-    var s = game.snapshot();
-    var f = s.finance;
+    var snap = game.snapshot();
+    var f = snap.finance;
 
-    $('p-prof').textContent = s.prof.emoji + ' ' + s.prof.title;
-    $('p-turn').textContent = 'ход ' + s.turn;
+    renderTrack(snap);
+    renderCards(snap);
+    renderChart(snap);
 
     var cashEl = $('f-cash');
-    cashEl.textContent = fmt(s.cash);
-    if (lastCash !== null && lastCash !== s.cash) {
+    cashEl.textContent = fmt(snap.cash);
+    if (lastCash !== null && lastCash !== snap.cash) {
       cashEl.classList.remove('bump'); void cashEl.offsetWidth; cashEl.classList.add('bump');
     }
-    lastCash = s.cash;
+    lastCash = snap.cash;
 
-    $('f-salary').textContent = fmt(f.salary);
+    $('f-salary').textContent = fmt(f.salary) + (snap.burnout ? ' 🥵' : '');
     $('f-passive').textContent = fmt(f.passive);
     $('f-exp').textContent = fmt(f.expenses);
-    $('f-flow').textContent = (f.cashflow >= 0 ? '+' : '') + fmt(f.cashflow);
-    $('f-flow').style.color = f.cashflow >= 0 ? 'var(--gain)' : 'var(--loss)';
-    $('f-loan').textContent = fmt(s.loan) + (s.loan > 0 ? ' (−' + fmt(f.loanPayment) + ')' : '');
-    $('f-children').textContent = 'детей: ' + s.children;
-    $('f-laps').textContent = 'кругов: ' + s.laps;
+    $('f-flow').textContent = (f.flow >= 0 ? '+' : '') + fmt(f.flow);
+    $('f-flow').style.color = f.flow >= 0 ? 'var(--gain)' : 'var(--loss)';
+    $('f-debt').textContent = fmt(f.debtTotal);
+    $('p-cushion').textContent = 'запас: ' + (Math.round(f.cushionMonths * 10) / 10) + ' мес';
 
-    // прогресс выхода
     var pct = f.expenses > 0 ? Math.min(100, Math.round(f.passive / f.expenses * 100)) : 0;
     $('escape-pct').textContent = pct + '%';
     $('escape-fill').style.width = pct + '%';
     $('escape-passive').textContent = fmt(f.passive) + ' пассивно';
     $('escape-exp').textContent = 'из ' + fmt(f.expenses) + ' расходов';
 
-    // активы
+    $('energy-pct').textContent = snap.energy + '%';
+    var ef = $('energy-fill');
+    ef.style.width = snap.energy + '%';
+    ef.className = 'energy-fill' + (snap.energy <= 30 ? ' low' : '');
+    $('burnout-note').classList.toggle('hidden', !snap.burnout);
+
     var list = $('assets-list');
     list.innerHTML = '';
-    var any = false;
-    s.realty.concat(s.biz).concat(s.cds).forEach(function (a) {
-      any = true;
-      var el = document.createElement('div');
-      el.className = 'asset';
-      el.innerHTML = '<span class="asset-name">' + a.title + '</span>' +
-                     '<span class="asset-flow">+' + fmt(a.cashflow) + '</span>';
-      list.appendChild(el);
+    if (!snap.assets.length && !snap.skills.length) {
+      list.innerHTML = '<div class="assets-empty">пока пусто — покупай то, что приносит поток</div>';
+    }
+    snap.assets.forEach(function (a) {
+      var elA = el('asset');
+      elA.innerHTML = '<span class="asset-name">' + a.title + (a.stalled ? ' <span class="asset-sub">простой</span>' : '') + '</span>' +
+        '<span class="asset-flow">' + (a.flow ? '+' + fmt(a.flow) : '—') + '</span>';
+      if (a.liquid) {
+        var b = document.createElement('button');
+        b.textContent = 'продать';
+        b.addEventListener('click', function () {
+          var r = game.sellAsset(a.id);
+          if (r.ok) { showLesson('ПРОДАНО', a.title, r.lesson); }
+        });
+        elA.appendChild(b);
+      }
+      list.appendChild(elA);
     });
-    Object.keys(s.stocks).forEach(function (k) {
-      any = true;
-      var st = s.stocks[k];
-      var el = document.createElement('div');
-      el.className = 'asset';
-      el.innerHTML = '<span class="asset-name">📊 ' + k + ' <span class="asset-sub">' + st.qty + ' шт · ср. $' + st.avgPrice + '</span></span>';
-      var btn = document.createElement('button');
-      btn.textContent = 'продать';
-      btn.addEventListener('click', function () { sellStockUI(k); });
-      el.appendChild(btn);
-      list.appendChild(el);
+    snap.skills.forEach(function (sk) {
+      list.appendChild(el('asset', '<span class="asset-name">📚 ' + sk.title + '</span><span class="asset-sub">через ' + sk.monthsLeft + ' мес</span>'));
     });
-    if (!any) { list.innerHTML = '<div class="assets-empty">пока пусто — покупай то, что приносит кэшфлоу</div>'; }
 
-    // лог (новые сверху)
     var logEl = $('gamelog');
     logEl.innerHTML = '';
-    s.log.slice().reverse().forEach(function (l) {
+    snap.log.slice().reverse().forEach(function (l) {
       var d = document.createElement('div');
       d.textContent = l.msg;
       logEl.appendChild(d);
     });
-
-    // подсказка в центре
-    if (s.charityTurns > 0) { $('center-note').textContent = '🤲 Бонус: два кубика ещё ' + s.charityTurns + ' х.'; }
-    else if (s.skipTurns > 0) { $('center-note').textContent = '⏸ Пропуск ходов: ' + s.skipTurns; }
-    else if (f.cashflow < 0) { $('center-note').textContent = '⚠️ Кэшфлоу в минусе — гаси кредит или наращивай пассивный доход'; }
-    else { $('center-note').textContent = ''; }
   }
 
   /* ---------- init ---------- */
   function init() {
-    renderIntro();
-    renderBoard();
-    $('btn-roll').addEventListener('click', onRoll);
-    $('btn-loan').addEventListener('click', onLoan);
-    $('btn-repay').addEventListener('click', onRepay);
-    $('btn-restart').addEventListener('click', function () { location.reload(); });
-    window.addEventListener('resize', function () {
-      if (game) { moveTokenTo(game.snapshot().pos, true); }
+    renderSetup();
+    $('btn-start').addEventListener('click', startGame);
+    $('btn-month').addEventListener('click', function () {
+      if (!game || game.state.status !== 'playing') { return; }
+      var r = game.endMonth();
+      render();
+      if (r.events.length) { showMonthResults(r.events); }
+      else if (game.state.status !== 'playing') { showFinale(game.snapshot()); }
     });
+    $('btn-skills').addEventListener('click', showSkills);
+    $('btn-rest').addEventListener('click', showRest);
+    $('btn-debt').addEventListener('click', showDebt);
+    $('btn-restart').addEventListener('click', function () { location.reload(); });
   }
 
   return { init: init };

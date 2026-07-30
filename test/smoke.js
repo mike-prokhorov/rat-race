@@ -1,110 +1,97 @@
-/* Смоук-тест движка: бот играет N партий каждой профессией.
-   Проверяем: нет крашей, нет NaN, победа достижима, банкрот работает.
+/* Смоук v2: три стратегии бота × N партий.
+   Инвестор должен выходить на свободу, транжира — нет. 0 крашей, 0 NaN.
    Запуск: node test/smoke.js */
 'use strict';
 
 var D = require('../js/data.js');
 var E = require('../js/engine.js');
 
-var GAMES_PER_PROF = 125; // 8 профессий × 125 = 1000 партий
-var MAX_TURNS = 600;
+var N = 400; // партий на стратегию
+var stats = {};
 
-var stats = { games: 0, wins: 0, losses: 0, timeouts: 0, crashes: 0, minTurnsToWin: 1e9, sumWinTurns: 0 };
-var perProf = {};
-
-function assertNum(x, label, g) {
-  if (typeof x !== 'number' || isNaN(x)) {
-    throw new Error('NaN/не число: ' + label + ' = ' + x + ' (ход ' + g.state.turn + ')');
-  }
+function assertNum(x, label, m) {
+  if (typeof x !== 'number' || isNaN(x)) { throw new Error('NaN: ' + label + ' (месяц ' + m + ')'); }
 }
 
-function botDecide(g) {
-  // простая жадная стратегия: покупаем всё что даёт кэшфлоу и по карману,
-  // акции берём если дивидендные и дешёвые, офферы рынка принимаем
-  var s = g.state;
-  var pc = s.pendingCard;
-  if (!pc) { return; }
-  if (pc.type === 'dealChoice') {
-    var size = s.cash > 15000 ? 'big' : 'small';
-    g.chooseDeal(size);
-    pc = s.pendingCard;
-  }
-  if (pc && pc.type === 'deal') {
-    var card = pc.card;
-    if (card.kind === 'stock') {
-      if (card.dividend > 0 && s.cash > card.price * 50) {
-        var qty = Math.floor((s.cash * 0.5) / card.price);
-        if (qty > 0) { g.buyStock(qty); } else { g.passCard(); }
-      } else { g.passCard(); }
-    } else {
-      var need = card.kind === 'cd' ? card.price : card.downPay;
-      if ((card.cashflow || 0) > 0 && need <= s.cash * 0.8) { g.buyProperty(); }
-      else { g.passCard(); }
+var strategies = {
+  // транжира: покупает все соблазны, игнорит предупреждения, активы не берёт
+  spender: function (g) {
+    var s = g.state;
+    if (s.offer.temptation && s.cash >= s.offer.temptation.cost) { g.buyTemptation(); }
+  },
+  // инвестор: чинит предупреждения, держит подушку 3 мес, покупает поток, отдыхает, гасит долги
+  investor: function (g) {
+    var s = g.state, f = g.finance();
+    var cushion = f.expenses * 3;
+    s.warnings.slice().forEach(function (w) { g.fixWarning(w.id); });
+    if (s.energy < 30) { g.rest(s.cash > cushion + 700 ? 'big' : 'small'); }
+    if (f.debtTotal > 0 && s.cash > cushion + 1000) { g.repayDebt(Math.floor((s.cash - cushion) / 500) * 500); }
+    if (s.offer.temptation) { g.declineTemptation(); }
+    // покупаем лучший доступный поток, оставляя подушку
+    var best = null, score = 0;
+    s.offer.opportunities.forEach(function (o) {
+      var sc = o.network ? 40 : (o.flow || 0) / Math.max(1, o.cost) * 1000 * (1 - (o.risk || 0));
+      if (o.cost <= s.cash - cushion && sc > score) { best = o; score = sc; }
+    });
+    if (best) { g.buyOpportunity(best.id); }
+    // учим навык в начале игры
+    if (s.month < 24 && !s.skills.length && s.cash > cushion + 800) {
+      for (var i = 0; i < D.SKILLS.length; i++) {
+        if (!s.owned['skill-' + D.SKILLS[i].id]) { g.learnSkill(D.SKILLS[i].id); break; }
+      }
     }
-  } else if (pc && pc.type === 'charity') {
-    g.charity(s.cash > 3000);
-  } else if (pc && pc.type === 'marketOffer') {
-    var ev = pc.card;
-    var list = ev.kind === 'buyer_biz' ? s.biz : s.realty;
-    if (list.length > 0) { g.sellToOffer(0, ev.kind === 'buyer_biz' ? 'biz' : 'realty'); }
-    else { g.declineOffer(); }
+    // кэш в минус не ушёл, но подушка пробита и есть ликвидное — продать
+    if (s.cash < f.expenses && s.assets.some(function (a) { return a.liquid; })) {
+      var liq = s.assets.filter(function (a) { return a.liquid; })[0];
+      g.sellAsset(liq.id);
+    }
+  },
+  // рандом: 50/50 решения
+  random: function (g) {
+    var s = g.state;
+    if (s.offer.temptation) { (g.rng() < 0.5 ? g.buyTemptation() : g.declineTemptation()); }
+    s.warnings.slice().forEach(function (w) { if (g.rng() < 0.5) { g.fixWarning(w.id); } });
+    s.offer.opportunities.slice().forEach(function (o) { if (g.rng() < 0.4 && s.cash >= o.cost) { g.buyOpportunity(o.id); } });
+    if (s.energy < 25 && g.rng() < 0.6) { g.rest('small'); }
   }
-}
+};
 
-for (var p = 0; p < D.PROFESSIONS.length; p++) {
-  var prof = D.PROFESSIONS[p];
-  perProf[prof.id] = { wins: 0, losses: 0, timeouts: 0 };
-  for (var gi = 0; gi < GAMES_PER_PROF; gi++) {
-    stats.games++;
+var crashes = 0;
+Object.keys(strategies).forEach(function (name) {
+  var st = { free: 0, bankrupt: 0, timeup: 0, sumFreeMonth: 0 };
+  for (var gi = 0; gi < N; gi++) {
     try {
-      var g = new E.Game({ seed: p * 100000 + gi });
-      g.start(prof.id);
-      var t = 0;
-      while (t++ < MAX_TURNS) {
-        var r = g.roll();
-        if (r.blocked && r.reason === 'card') { botDecide(g); continue; }
-        botDecide(g);
+      var g = new E.Game({ seed: gi * 7 + name.length * 1000 });
+      g.start({});
+      var guard = 0;
+      while (g.state.status === 'playing' && guard++ < 400) {
+        strategies[name](g);
+        var r = g.endMonth();
         var f = g.finance();
-        assertNum(g.state.cash, 'cash', g);
-        assertNum(f.cashflow, 'cashflow', g);
-        assertNum(f.passive, 'passive', g);
-        if (g.state.pos < 0 || g.state.pos >= D.BOARD.length) {
-          throw new Error('Позиция вне доски: ' + g.state.pos);
-        }
-        if (g.state.won) {
-          stats.wins++; perProf[prof.id].wins++;
-          stats.sumWinTurns += g.state.turn;
-          if (g.state.turn < stats.minTurnsToWin) { stats.minTurnsToWin = g.state.turn; }
-          break;
-        }
-        if (g.state.lost) { stats.losses++; perProf[prof.id].losses++; break; }
+        assertNum(g.state.cash, 'cash', g.state.month);
+        assertNum(f.flow, 'flow', g.state.month);
+        assertNum(f.passive, 'passive', g.state.month);
       }
-      if (t >= MAX_TURNS && !g.state.won && !g.state.lost) {
-        stats.timeouts++; perProf[prof.id].timeouts++;
-      }
+      var out = g.state.status === 'playing' ? 'timeup' : g.state.status;
+      st[out] = (st[out] || 0) + 1;
+      if (out === 'free') { st.sumFreeMonth += g.state.freedomMonth; }
     } catch (e) {
-      stats.crashes++;
-      console.error('CRASH [' + prof.id + ' #' + gi + ']: ' + e.message);
-      if (stats.crashes > 5) { process.exit(1); }
+      crashes++;
+      console.error('CRASH [' + name + ' #' + gi + ']: ' + e.message);
+      if (crashes > 5) { process.exit(1); }
     }
   }
-}
-
-console.log('=== СМОУК-ТЕСТ ===');
-console.log('Партий: ' + stats.games);
-console.log('Побед: ' + stats.wins + ' (' + Math.round(stats.wins / stats.games * 100) + '%)');
-console.log('Банкротств: ' + stats.losses);
-console.log('Таймаутов (600 ходов без исхода): ' + stats.timeouts);
-console.log('Крашей: ' + stats.crashes);
-if (stats.wins > 0) {
-  console.log('Быстрейшая победа: ' + stats.minTurnsToWin + ' ходов, средняя: ' + Math.round(stats.sumWinTurns / stats.wins));
-}
-console.log('--- по профессиям ---');
-Object.keys(perProf).forEach(function (k) {
-  var s = perProf[k];
-  console.log('  ' + k + ': W' + s.wins + ' / L' + s.losses + ' / T' + s.timeouts);
+  var med = st.free ? Math.round(st.sumFreeMonth / st.free) : 0;
+  console.log(name + ': свобода ' + st.free + '/' + N + ' (' + Math.round(st.free / N * 100) + '%)' +
+    ' · банкрот ' + (st.bankrupt || 0) + ' · 30 лет ' + (st.timeup || 0) +
+    (med ? ' · средний выход: ' + med + ' мес (' + Math.round(med / 12) + ' лет)' : ''));
+  stats[name] = st;
 });
 
-var ok = stats.crashes === 0 && stats.wins > 0 && stats.games === D.PROFESSIONS.length * GAMES_PER_PROF;
+var ok = crashes === 0 &&
+  stats.investor.free / N > 0.6 &&           // умная игра приводит к свободе
+  (stats.spender.free || 0) / N < 0.1 &&     // транжирство — нет
+  stats.investor.free > (stats.random.free || 0); // решения важнее случайности
+console.log('Крашей: ' + crashes);
 console.log(ok ? 'RESULT: OK' : 'RESULT: FAIL');
 process.exit(ok ? 0 : 1);

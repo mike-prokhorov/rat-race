@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Крысиные бега — финансовый тренажёр</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Крысиные бега — тренажёр денежного потока</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐭</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,87 +14,101 @@
 </head>
 <body>
 
-<!-- ═══════════ ЭКРАН ВЫБОРА ПРОФЕССИИ ═══════════ -->
+<!-- ═══════════ СТАРТ: ТВОЯ ЖИЗНЬ ═══════════ -->
 <section id="intro" class="intro">
   <div class="intro-grain"></div>
   <header class="intro-head">
-    <div class="intro-eyebrow">финансовый тренажёр · по механике Cashflow</div>
+    <div class="intro-eyebrow">тренажёр денежного потока · твоя жизнь, не абстракция</div>
     <h1 class="intro-title">КРЫСИНЫЕ<br><span>БЕГА</span></h1>
-    <p class="intro-sub">Твоя цель — чтобы деньги работали вместо тебя.<br>
-    Пассивный доход больше расходов = ты вышел из крысиных бегов.</p>
+    <p class="intro-sub">Каждый ход — месяц твоей жизни в Да Нанге. Никакого кубика:<br>
+    выиграешь или проиграешь только своими решениями.<br>
+    Свобода = пассивный доход больше расходов.</p>
   </header>
-  <div class="prof-grid" id="prof-grid"><!-- карточки профессий из JS --></div>
-  <div class="intro-hint">Совет: чем меньше зарплата, тем меньше расходы — дворнику выйти из бегов проще, чем врачу.</div>
+
+  <div class="setup" id="setup">
+    <div class="setup-col">
+      <div class="setup-title">Твой доход</div>
+      <label class="setup-row"><span>Доход в месяц, $</span><input type="number" id="inp-salary" value="1500" min="0" step="50"></label>
+      <div class="setup-title" style="margin-top:14px">Твои расходы, $/мес</div>
+      <div id="setup-expenses"><!-- строки из JS --></div>
+    </div>
+    <div class="setup-col setup-summary">
+      <div class="setup-title">Что получается</div>
+      <div class="setup-num"><span>Доход</span><b id="sum-income">$1 500</b></div>
+      <div class="setup-num"><span>Расходы</span><b id="sum-exp">$1 100</b></div>
+      <div class="setup-num hl"><span>Свободный поток</span><b id="sum-flow">+$400</b></div>
+      <p class="setup-note">Это твои настоящие цифры — правь под себя.
+      Игра начинается с $800 на руках. Цель: чтобы активы кормили тебя без работы.</p>
+      <button class="btn btn-gold" id="btn-start">НАЧАТЬ ПУТЬ</button>
+    </div>
+  </div>
 </section>
 
-<!-- ═══════════ ИГРОВОЙ ЭКРАН ═══════════ -->
+<!-- ═══════════ ИГРА ═══════════ -->
 <main id="game" class="game hidden">
 
-  <!-- Доска -->
-  <div class="board-wrap">
-    <div class="board" id="board">
-      <!-- клетки из JS -->
-      <div class="board-center">
-        <div class="center-brand">КРЫСИНЫЕ БЕГА</div>
-        <div class="dice-zone">
-          <div class="die" id="die1"><span></span></div>
-          <div class="die hidden" id="die2"><span></span></div>
-        </div>
-        <button class="btn btn-gold btn-roll" id="btn-roll">БРОСИТЬ КУБИК</button>
-        <div class="center-note" id="center-note"></div>
-      </div>
-      <div class="token" id="token">🐭</div>
+  <!-- Центр: месяц -->
+  <div class="month-col">
+    <header class="month-head">
+      <div class="month-title"><span id="m-num">Месяц 1</span><span class="month-year" id="m-year">1-й год</span></div>
+      <div class="year-track" id="year-track"><!-- 12 точек + фишка --></div>
+    </header>
+
+    <div class="cards-flow" id="cards-flow"><!-- карточки месяца из JS --></div>
+
+    <div class="actions-bar">
+      <button class="btn btn-ghost" id="btn-skills">📚 Навыки</button>
+      <button class="btn btn-ghost" id="btn-rest">🌊 Отдых</button>
+      <button class="btn btn-ghost" id="btn-debt">🏦 Долги</button>
+      <button class="btn btn-gold btn-month" id="btn-month">ПРОЖИТЬ МЕСЯЦ →</button>
     </div>
   </div>
 
-  <!-- Правая панель -->
+  <!-- Право: финансы -->
   <aside class="panel">
     <div class="panel-head">
-      <div class="panel-prof" id="p-prof">—</div>
-      <div class="panel-turn" id="p-turn">ход 0</div>
+      <div class="panel-prof" id="p-prof">🐭 Вайб-кодер · Да Нанг</div>
+      <div class="panel-turn" id="p-cushion">запас: 0 мес</div>
     </div>
 
-    <!-- Прогресс выхода -->
     <div class="escape">
-      <div class="escape-label">
-        <span>выход из бегов</span>
-        <span id="escape-pct">0%</span>
-      </div>
+      <div class="escape-label"><span>до свободы</span><span id="escape-pct">0%</span></div>
       <div class="escape-bar"><div class="escape-fill" id="escape-fill"></div></div>
       <div class="escape-nums"><span id="escape-passive">$0 пассивно</span><span id="escape-exp">из $0 расходов</span></div>
     </div>
 
-    <!-- Финансовый отчёт -->
     <div class="fin">
       <div class="fin-row fin-cash"><span>Наличные</span><b id="f-cash">$0</b></div>
-      <div class="fin-row"><span>Зарплата</span><b id="f-salary">$0</b></div>
+      <div class="fin-row"><span>Доход от работы</span><b id="f-salary">$0</b></div>
       <div class="fin-row fin-good"><span>Пассивный доход</span><b id="f-passive">$0</b></div>
       <div class="fin-row fin-bad"><span>Расходы</span><b id="f-exp">$0</b></div>
-      <div class="fin-row fin-flow"><span>Кэшфлоу / круг</span><b id="f-flow">$0</b></div>
-      <div class="fin-row fin-loan"><span>Кредит банка</span><b id="f-loan">$0</b></div>
-      <div class="fin-meta"><span id="f-children">детей: 0</span><span id="f-laps">кругов: 0</span></div>
+      <div class="fin-row fin-flow"><span>Поток / месяц</span><b id="f-flow">$0</b></div>
+      <div class="fin-row fin-loan"><span>Долги</span><b id="f-debt">$0</b></div>
     </div>
 
-    <!-- Банк -->
-    <div class="bank">
-      <button class="btn btn-ghost" id="btn-loan">Взять кредит</button>
-      <button class="btn btn-ghost" id="btn-repay">Погасить</button>
+    <div class="energy">
+      <div class="escape-label"><span>энергия</span><span id="energy-pct">70%</span></div>
+      <div class="escape-bar"><div class="energy-fill" id="energy-fill"></div></div>
+      <div class="energy-note hidden" id="burnout-note">🥵 выгорание: доход просел на 25%</div>
     </div>
 
-    <!-- Активы -->
+    <div class="chart-box-wrap">
+      <div class="assets-title">пассив <i class="lg lg-gold"></i> против расходов <i class="lg lg-red"></i></div>
+      <svg id="chart" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+    </div>
+
     <div class="assets">
       <div class="assets-title">Активы</div>
-      <div class="assets-list" id="assets-list"><div class="assets-empty">пока пусто — покупай то, что приносит кэшфлоу</div></div>
+      <div class="assets-list" id="assets-list"><div class="assets-empty">пока пусто — покупай то, что приносит поток</div></div>
     </div>
 
-    <!-- Лог -->
     <div class="gamelog" id="gamelog"></div>
   </aside>
 
-  <!-- Карточка события (модалка) -->
+  <!-- Модалка: карточка / итоги месяца / меню -->
   <div class="overlay hidden" id="overlay">
     <div class="card" id="card">
-      <div class="card-tag" id="card-tag">СДЕЛКА</div>
+      <div class="card-tag" id="card-tag">—</div>
       <h3 class="card-title" id="card-title">—</h3>
       <p class="card-desc" id="card-desc">—</p>
       <div class="card-nums" id="card-nums"></div>
@@ -104,9 +118,9 @@
 
   <!-- Финал -->
   <div class="overlay hidden" id="finale">
-    <div class="finale-box" id="finale-box">
+    <div class="finale-box">
       <div class="finale-emoji" id="finale-emoji">🏆</div>
-      <h2 class="finale-title" id="finale-title">ТЫ ВЫШЕЛ ИЗ КРЫСИНЫХ БЕГОВ</h2>
+      <h2 class="finale-title" id="finale-title">—</h2>
       <p class="finale-sub" id="finale-sub"></p>
       <button class="btn btn-gold" id="btn-restart">Сыграть ещё раз</button>
     </div>
