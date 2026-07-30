@@ -1,0 +1,119 @@
+/* ═══════ Крысиные бега — дизайн-токены ═══════
+   Направление: ночной банкирский стол. Сукно, золото, слоновая кость.
+   Эталон вкуса: Mugen (dark editorial premium). */
+
+:root {
+  /* палитра */
+  --ink: #0b0f0e;                 /* фон-полночь */
+  --felt: #10201b;                /* сукно стола */
+  --felt-deep: #0c1815;
+  --cell: #142a24;                /* клетка доски */
+  --cell-edge: #1e3a32;
+  --ivory: #f2ecdd;               /* карточки */
+  --ivory-dim: #d8d0bd;
+  --gold: #d4af6a;                /* золото — акцент */
+  --gold-hot: #f0cd8a;
+  --gold-dim: #8a743f;
+  --loss: #c96a4e;                /* терракота — расходы/минус */
+  --gain: #7fb98a;                /* доход/плюс */
+  --steel: #7d97a8;               /* акции */
+  --text: #e9e4d6;
+  --text-dim: #9aa39b;
+
+  /* шрифты */
+  --f-display: 'Unbounded', Georgia, serif;
+  --f-body: 'Golos Text', -apple-system, sans-serif;
+  --f-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* движение */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 160ms;
+  --dur-med: 380ms;
+  --dur-step: 150ms;              /* шаг фишки */
+
+  /* размеры */
+  --board-size: min(92vh, 58vw);
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--f-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background:
+    radial-gradient(1200px 800px at 70% -10%, rgba(212, 175, 106, 0.06), transparent 60%),
+    radial-gradient(900px 700px at 10% 110%, rgba(16, 32, 27, 0.9), transparent 70%),
+    var(--ink);
+  overflow-x: hidden;
+}
+
+.hidden { display: none !important; }
+
+/* ── кнопки ── */
+.btn {
+  font-family: var(--f-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.7em 1.3em;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              background var(--dur-fast);
+}
+.btn:active { transform: translateY(1px) scale(0.99); }
+
+.btn-gold {
+  background: linear-gradient(160deg, var(--gold-hot), var(--gold) 55%, var(--gold-dim));
+  color: #241c0c;
+  font-family: var(--f-display);
+  font-weight: 700;
+  box-shadow: 0 6px 24px rgba(212, 175, 106, 0.25), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+.btn-gold:hover {
+  box-shadow: 0 8px 32px rgba(212, 175, 106, 0.45), inset 0 1px 0 rgba(255,255,255,0.4);
+  transform: translateY(-1px);
+}
+.btn-gold:disabled {
+  filter: grayscale(0.8) brightness(0.6);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold-dim);
+}
+.btn-ghost:hover { background: rgba(212, 175, 106, 0.1); border-color: var(--gold); }
+
+.btn-ivory {
+  background: var(--ivory);
+  color: #201c12;
+}
+.btn-ivory:hover { background: #fff8e8; }
+
+.btn-pass {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid #3a453f;
+}
+.btn-pass:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* ── reduced motion: всё мгновенно ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Крысиные бега — финансовый тренажёр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Golos+Text:wght@400;500;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/panels.css">
+</head>
+<body>
+
+<!-- ═══════════ ЭКРАН ВЫБОРА ПРОФЕССИИ ═══════════ -->
+<section id="intro" class="intro">
+  <div class="intro-grain"></div>
+  <header class="intro-head">
+    <div class="intro-eyebrow">финансовый тренажёр · по механике Cashflow</div>
+    <h1 class="intro-title">КРЫСИНЫЕ<br><span>БЕГА</span></h1>
+    <p class="intro-sub">Твоя цель — чтобы деньги работали вместо тебя.<br>
+    Пассивный доход больше расходов = ты вышел из крысиных бегов.</p>
+  </header>
+  <div class="prof-grid" id="prof-grid"><!-- карточки профессий из JS --></div>
+  <div class="intro-hint">Совет: чем меньше зарплата, тем меньше расходы — дворнику выйти из бегов проще, чем врачу.</div>
+</section>
+
+<!-- ═══════════ ИГРОВОЙ ЭКРАН ═══════════ -->
+<main id="game" class="game hidden">
+
+  <!-- Доска -->
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <!-- клетки из JS -->
+      <div class="board-center">
+        <div class="center-brand">КРЫСИНЫЕ БЕГА</div>
+        <div class="dice-zone">
+          <div class="die" id="die1"><span></span></div>
+          <div class="die hidden" id="die2"><span></span></div>
+        </div>
+        <button class="btn btn-gold btn-roll" id="btn-roll">БРОСИТЬ КУБИК</button>
+        <div class="center-note" id="center-note"></div>
+      </div>
+      <div class="token" id="token">🐭</div>
+    </div>
+  </div>
+
+  <!-- Правая панель -->
+  <aside class="panel">
+    <div class="panel-head">
+      <div class="panel-prof" id="p-prof">—</div>
+      <div class="panel-turn" id="p-turn">ход 0</div>
+    </div>
+
+    <!-- Прогресс выхода -->
+    <div class="escape">
+      <div class="escape-label">
+        <span>выход из бегов</span>
+        <span id="escape-pct">0%</span>
+      </div>
+      <div class="escape-bar"><div class="escape-fill" id="escape-fill"></div></div>
+      <div class="escape-nums"><span id="escape-passive">$0 пассивно</span><span id="escape-exp">из $0 расходов</span></div>
+    </div>
+
+    <!-- Финансовый отчёт -->
+    <div class="fin">
+      <div class="fin-row fin-cash"><span>Наличные</span><b id="f-cash">$0</b></div>
+      <div class="fin-row"><span>Зарплата</span><b id="f-salary">$0</b></div>
+      <div class="fin-row fin-good"><span>Пассивный доход</span><b id="f-passive">$0</b></div>
+      <div class="fin-row fin-bad"><span>Расходы</span><b id="f-exp">$0</b></div>
+      <div class="fin-row fin-flow"><span>Кэшфлоу / круг</span><b id="f-flow">$0</b></div>
+      <div class="fin-row fin-loan"><span>Кредит банка</span><b id="f-loan">$0</b></div>
+      <div class="fin-meta"><span id="f-children">детей: 0</span><span id="f-laps">кругов: 0</span></div>
+    </div>
+
+    <!-- Банк -->
+    <div class="bank">
+      <button class="btn btn-ghost" id="btn-loan">Взять кредит</button>
+      <button class="btn btn-ghost" id="btn-repay">Погасить</button>
+    </div>
+
+    <!-- Активы -->
+    <div class="assets">
+      <div class="assets-title">Активы</div>
+      <div class="assets-list" id="assets-list"><div class="assets-empty">пока пусто — покупай то, что приносит кэшфлоу</div></div>
+    </div>
+
+    <!-- Лог -->
+    <div class="gamelog" id="gamelog"></div>
+  </aside>
+
+  <!-- Карточка события (модалка) -->
+  <div class="overlay hidden" id="overlay">
+    <div class="card" id="card">
+      <div class="card-tag" id="card-tag">СДЕЛКА</div>
+      <h3 class="card-title" id="card-title">—</h3>
+      <p class="card-desc" id="card-desc">—</p>
+      <div class="card-nums" id="card-nums"></div>
+      <div class="card-actions" id="card-actions"></div>
+    </div>
+  </div>
+
+  <!-- Финал -->
+  <div class="overlay hidden" id="finale">
+    <div class="finale-box" id="finale-box">
+      <div class="finale-emoji" id="finale-emoji">🏆</div>
+      <h2 class="finale-title" id="finale-title">ТЫ ВЫШЕЛ ИЗ КРЫСИНЫХ БЕГОВ</h2>
+      <p class="finale-sub" id="finale-sub"></p>
+      <button class="btn btn-gold" id="btn-restart">Сыграть ещё раз</button>
+    </div>
+  </div>
+
+</main>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
