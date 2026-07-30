@@ -61,7 +61,7 @@ var GameData = (function () {
       lesson: 'Связи — не актив в таблице, но лучшие сделки приходят от людей, а не с маркетплейса.' },
     { id: 'blog', cat: 'flow', title: 'Телеграм-канал про автоматизацию', desc: 'Полгода вёл для души — можно продавать рекламу.', cost: 600, flow: 60, risk: 0.2,
       lesson: 'Аудитория = актив. Который надо кормить контентом, иначе поток тает.' },
-    { id: 'bot3', cat: 'flow', title: 'Третий клиент на бота', desc: 'Сарафан заработал: клиент пришёл сам.', cost: 300, flow: 120, risk: 0.15, needs: 'bot2',
+    { id: 'bot3', cat: 'flow', title: 'Третий клиент на бота', desc: 'Сарафан заработал: клиент пришёл сам.', cost: 400, flow: 120, risk: 0.15, needs: 'bot2',
       lesson: 'Три клиента: риск размазан, а код всё тот же. Система начала работать на тебя.' },
     { id: 'yt', cat: 'flow', title: 'YouTube про AI-автоматизацию', desc: 'Полгода роликов — партнёрка и реклама начали капать.', cost: 1500, flow: 85, risk: 0.25,
       lesson: 'Контент платит с задержкой и нестабильно. Зато аудитория остаётся твоей.' },
@@ -212,9 +212,19 @@ var GameData = (function () {
     lifeEventChance: 0.18
   };
 
+  // ---- внешние колоды (js/cards/*.js): в браузере — глобалы, в node — require ----
+  function ext(globalName, path) {
+    if (typeof window !== 'undefined') { return window[globalName] || []; }
+    try { return require(path); } catch (e) { return []; }
+  }
+
   return {
-    START: START, OPPORTUNITIES: OPPORTUNITIES, SKILLS: SKILLS,
-    WARNINGS: WARNINGS, LIFE_EVENTS: LIFE_EVENTS, TEMPTATIONS: TEMPTATIONS,
+    START: START,
+    OPPORTUNITIES: OPPORTUNITIES.concat(ext('CARDS_OPPS_A', './cards/opps-a.js'), ext('CARDS_OPPS_B', './cards/opps-b.js')),
+    SKILLS: SKILLS.concat(ext('CARDS_SKILLS', './cards/skills.js')),
+    WARNINGS: WARNINGS.concat(ext('CARDS_WARNINGS', './cards/warnings.js')),
+    LIFE_EVENTS: LIFE_EVENTS.concat(ext('CARDS_EVENTS', './cards/events.js')),
+    TEMPTATIONS: TEMPTATIONS.concat(ext('CARDS_TEMPTATIONS', './cards/temptations.js')),
     REST: REST, RULES: RULES
   };
 })();
